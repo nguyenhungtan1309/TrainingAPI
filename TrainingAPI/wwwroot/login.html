@@ -1,0 +1,192 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng nhập hệ thống Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f0f2f5;
+            margin: 0;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 350px;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+            input:focus {
+                border-color: #007bff;
+            }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+            button:hover {
+                background: #0056b3;
+            }
+
+        .switch {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+            cursor: pointer;
+            color: #007bff;
+        }
+
+        .error {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 id="formTitle">Đăng Nhập</h2>
+        <div class="form-group" id="displayNameGroup" style="display: none;">
+            <label>Tên hiển thị:</label>
+            <input type="text" id="displayName" placeholder="VD: Nguyễn Văn A" onkeydown="handleDisplayNameKey(event)">
+        </div>
+        <div class="form-group">
+            <label>Tên đăng nhập:</label>
+            <input type="text" id="username" placeholder="nguyenvana" onkeydown="handleUsernameKey(event)" autofocus>
+        </div>
+        <div class="form-group">
+            <label>Mật khẩu:</label>
+            <input type="password" id="password" placeholder="******" onkeydown="handlePasswordKey(event)">
+        </div>
+        <button id="btnSubmit" onclick="handleSubmit()">Đăng Nhập</button>
+        <div class="error" id="errorMsg"></div>
+        <div class="switch" id="btnSwitch" onclick="toggleMode()">Chưa có tài khoản? Đăng ký ngay</div>
+    </div>
+
+    <script>
+        let isLoginMode = true;
+
+        function handleDisplayNameKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('username').focus();
+            }
+        }
+
+        function handleUsernameKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('password').focus();
+            }
+        }
+
+        function handlePasswordKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSubmit();
+            }
+        }
+
+        function toggleMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('formTitle').innerText = isLoginMode ? "Đăng Nhập" : "Đăng Ký";
+            document.getElementById('displayNameGroup').style.display = isLoginMode ? "none" : "block";
+            document.getElementById('btnSubmit').innerText = isLoginMode ? "Đăng Nhập" : "Đăng Ký";
+            document.getElementById('btnSwitch').innerText = isLoginMode ? "Chưa có tài khoản? Đăng ký ngay" : "Đã có tài khoản? Đăng nhập";
+            document.getElementById('errorMsg').innerText = "";
+
+            if (!isLoginMode) {
+                document.getElementById('displayName').focus();
+            } else {
+                document.getElementById('username').focus();
+            }
+        }
+
+        async function handleSubmit() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const displayName = document.getElementById('displayName').value.trim();
+            const errorEl = document.getElementById('errorMsg');
+            errorEl.innerText = "";
+
+            if (!username || !password || (!isLoginMode && !displayName)) {
+                errorEl.innerText = "Vui lòng nhập đầy đủ thông tin.";
+                return;
+            }
+
+            const endpoint = isLoginMode ? '/api/auth/login' : '/api/auth/register';
+            const payload = isLoginMode
+                ? { username, password }
+                : { username, password, displayName };
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    errorEl.innerText = data.message || "Thao tác thất bại.";
+                    return;
+                }
+
+                if (isLoginMode) {
+                    localStorage.setItem('jwtToken', data.token);
+                    localStorage.setItem('currentUser', JSON.stringify({
+                        id: data.userId,
+                        username: data.username,
+                        displayName: data.displayName
+                    }));
+                    window.location.href = "/chat";
+                } else {
+                    alert("Đăng ký thành công! Vui lòng đăng nhập.");
+                    toggleMode();
+                }
+            } catch (err) {
+                errorEl.innerText = "Lỗi kết nối máy chủ.";
+            }
+        }
+    </script>
+</body>
+</html>

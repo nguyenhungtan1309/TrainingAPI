@@ -1,11 +1,13 @@
-using Microsoft.EntityFrameworkCore;
+using Azure.Core;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.OData;
-using TrainingAPI.Middlewares;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using TrainingAPI.Hubs;
+using TrainingAPI.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
 
 builder.Services.AddControllers()
     .AddOData(options => options
@@ -16,22 +18,62 @@ builder.Services.AddControllers()
         .SetMaxTop(100)
         .SkipToken());
 
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "Chuoi_Khoa_Bi_Mat_Cuc_Ky_Dai_Va_An_Toan_Tren_32_Ky_Tu_Cho_TrainingAPI";
+var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+options.RequireHttpsMetadata = false;
+options.SaveToken = true;
+options.TokenValidationParameters = new TokenValidationParameters
+{
+    ValidateIssuer = true,
+    ValidateAudience = true,
+    ValidateLifetime = true,
+    ValidateIssuerSigningKey = true,
+    ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "TrainingAPI",
+    ValidAudience = builder.Configuration["Jwt:Audience"] ?? "TrainingAPIClient",
+    IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
+};
+
+options.Events = new JwtBearerEvents
+{
+    OnMessageReceived = context =>
+    {
+    var accessToken = context.Request.Query["access_token"];
+    var path = context.HttpContext.Request.Path;
+    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub", StringComparison.OrdinalIgnoreCase))
+            {
+    context.Token = accessToken;
+}
+return Task.CompletedTask;
+        }
+    };
+});
+
 builder.Services.AddSignalR();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        builder.SetIsOriginAllowed(_ => true)
-               .AllowAnyMethod()
-               .AllowAnyHeader()
-               .AllowCredentials();
+        policy.SetIsOriginAllowed(_ => true)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
 builder.Services.AddOpenApi();
+
 builder.Services.AddDbContext<TrainingAPI.Models.CompanyContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 builder.Logging.ClearProviders();
 builder.Logging.AddLog4Net("log4net.config");
 
@@ -43,22 +85,34 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
 app.UseCors("AllowAll");
-
 app.UseMiddleware<RequestLoggingMiddleware>();
-
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
 app.MapHub<ChatHub>("/chathub");
+
+app.MapGet("/", () => Results.Redirect("/login"));
+
+app.MapGet("/login", async context =>
+{
+    context.Response.ContentType = "text/html; charset=utf-8";
+    await context.Response.SendFileAsync(Path.Combine(app.Environment.WebRootPath, "login.html"));
+});
+
+app.MapGet("/chat", async context =>
+{
+    context.Response.ContentType = "text/html; charset=utf-8";
+    await context.Response.SendFileAsync(Path.Combine(app.Environment.WebRootPath, "chat.html"));
+});
 
 app.Run();
