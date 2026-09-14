@@ -1,191 +1,269 @@
 ﻿<!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="dark">
 <head>
     <meta charset="UTF-8">
-    <title>Đăng nhập hệ thống Chat</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background: #f0f2f5;
-            margin: 0;
-        }
-
-        .card {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            width: 350px;
-        }
-
-        h2 {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #333;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-            outline: none;
-        }
-
-            input:focus {
-                border-color: #007bff;
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - Hệ Thống Trò Chuyện Trực Tuyến</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        chatPrimary: '#6366f1',
+                        chatPrimaryHover: '#4f46e5'
+                    }
+                }
             }
-
-        button {
-            width: 100%;
-            padding: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
         }
-
-            button:hover {
-                background: #0056b3;
-            }
-
-        .switch {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 14px;
-            cursor: pointer;
-            color: #007bff;
-        }
-
-        .error {
-            color: red;
-            font-size: 14px;
-            margin-top: 10px;
-            text-align: center;
-        }
-    </style>
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
-<body>
-    <div class="card">
-        <h2 id="formTitle">Đăng Nhập</h2>
-        <div class="form-group" id="displayNameGroup" style="display: none;">
-            <label>Tên hiển thị:</label>
-            <input type="text" id="displayName" placeholder="VD: Nguyễn Văn A" onkeydown="handleDisplayNameKey(event)">
+<body class="bg-slate-950 min-h-screen flex items-center justify-center p-4 font-sans antialiased text-slate-200">
+
+    <div class="w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden transition-all duration-300">
+        <!-- Header / Logo -->
+        <div class="p-8 pb-6 text-center bg-gradient-to-b from-indigo-950/30 to-slate-900">
+            <div class="w-16 h-16 bg-indigo-600 text-white rounded-2xl mx-auto flex items-center justify-center text-2xl shadow-lg shadow-indigo-600/30 mb-4">
+                <i class="fa-solid fa-comments"></i>
+            </div>
+            <h2 id="formTitle" class="text-2xl font-black text-slate-100 tracking-tight">Chào mừng trở lại</h2>
+            <p id="formSubtitle" class="text-xs text-slate-400 mt-1">Đăng nhập để kết nối với bạn bè và đồng nghiệp</p>
         </div>
-        <div class="form-group">
-            <label>Tên đăng nhập:</label>
-            <input type="text" id="username" placeholder="nguyenvana" onkeydown="handleUsernameKey(event)" autofocus>
+
+        <!-- Tab Chuyển Đổi -->
+        <div class="flex border-b border-slate-800 px-8">
+            <button id="tabLogin" onclick="switchMode('login')"
+                    class="flex-1 py-3 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 transition">
+                Đăng nhập
+            </button>
+            <button id="tabRegister" onclick="switchMode('register')"
+                    class="flex-1 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition">
+                Tạo tài khoản
+            </button>
         </div>
-        <div class="form-group">
-            <label>Mật khẩu:</label>
-            <input type="password" id="password" placeholder="******" onkeydown="handlePasswordKey(event)">
+
+        <!-- Vùng Thông Báo Alert -->
+        <div id="alertBox" class="hidden mx-8 mt-4 p-3.5 rounded-2xl text-xs flex items-center gap-2 border"></div>
+
+        <!-- Form Đăng Nhập / Đăng Ký -->
+        <form id="authForm" onsubmit="handleSubmit(event)" class="p-8 pt-6 space-y-4">
+            <!-- Tên hiển thị (Chỉ hiện khi Đăng ký) -->
+            <div id="displayNameField" class="hidden space-y-1.5">
+                <label class="text-xs font-bold text-slate-300">Tên hiển thị</label>
+                <div class="relative">
+                    <i class="fa-solid fa-id-badge absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
+                    <input type="text" id="displayNameInput" placeholder="Ví dụ: Nguyễn Văn A"
+                           class="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
+                </div>
+            </div>
+
+            <!-- Avatar URL (Chỉ hiện khi Đăng ký) -->
+            <div id="avatarUrlField" class="hidden space-y-1.5">
+                <label class="text-xs font-bold text-slate-300">Link Ảnh đại diện (Tùy chọn)</label>
+                <div class="relative">
+                    <i class="fa-solid fa-image absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
+                    <input type="url" id="avatarUrlInput" placeholder="https://example.com/avatar.jpg"
+                           class="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
+                </div>
+            </div>
+
+            <!-- Tên đăng nhập -->
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-300">Tên đăng nhập</label>
+                <div class="relative">
+                    <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
+                    <input type="text" id="usernameInput" required placeholder="Nhập username của bạn"
+                           class="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
+                </div>
+            </div>
+
+            <!-- Mật khẩu -->
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-300">Mật khẩu</label>
+                <div class="relative">
+                    <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
+                    <input type="password" id="passwordInput" required placeholder="Nhập mật khẩu"
+                           class="w-full pl-9 pr-10 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-slate-200 text-xs">
+                        <i id="eyeIcon" class="fa-regular fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Nút Submit -->
+            <button type="submit" id="submitBtn"
+                    class="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+                <span>Đăng nhập</span>
+                <i class="fa-solid fa-arrow-right text-xs"></i>
+            </button>
+        </form>
+
+        <!-- Dữ liệu demo gợi ý -->
+        <div class="px-8 pb-6 text-center border-t border-slate-800/50 pt-4">
+            <p class="text-[11px] text-slate-500">
+                Tài khoản thử nghiệm: <span class="font-semibold text-slate-300">nguyenvana</span> | Pass: <span class="font-semibold text-slate-300">123456</span>[cite: 10]
+            </p>
         </div>
-        <button id="btnSubmit" onclick="handleSubmit()">Đăng Nhập</button>
-        <div class="error" id="errorMsg"></div>
-        <div class="switch" id="btnSwitch" onclick="toggleMode()">Chưa có tài khoản? Đăng ký ngay</div>
     </div>
 
+    <!-- Script Xử Lý Nghiệp Vụ Auth -->
     <script>
-        let isLoginMode = true;
+        let currentMode = 'login';
 
-        function handleDisplayNameKey(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById('username').focus();
+        // Kiểm tra độc lập trên sessionStorage của từng Tab
+        window.addEventListener("DOMContentLoaded", () => {
+            const token = sessionStorage.getItem("jwtToken");
+            const userId = sessionStorage.getItem("userId");
+            if (token && userId && userId !== "0") {
+                window.location.href = "/chat";
             }
+        });
+
+        function switchMode(mode) {
+            currentMode = mode;
+            const isLogin = mode === 'login';
+
+            document.getElementById("tabLogin").className = isLogin
+                ? "flex-1 py-3 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 transition"
+                : "flex-1 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition";
+
+            document.getElementById("tabRegister").className = !isLogin
+                ? "flex-1 py-3 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 transition"
+                : "flex-1 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition";
+
+            document.getElementById("formTitle").innerText = isLogin ? "Chào mừng trở lại" : "Đăng ký tài khoản";
+            document.getElementById("formSubtitle").innerText = isLogin
+                ? "Đăng nhập để kết nối với bạn bè và đồng nghiệp"
+                : "Tạo tài khoản mới chỉ trong vài giây";
+
+            document.getElementById("displayNameField").classList.toggle("hidden", isLogin);
+            document.getElementById("avatarUrlField").classList.toggle("hidden", isLogin);
+
+            document.getElementById("submitBtn").querySelector("span").innerText = isLogin ? "Đăng nhập" : "Đăng ký ngay";
+
+            hideAlert();
         }
 
-        function handleUsernameKey(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.getElementById('password').focus();
-            }
-        }
-
-        function handlePasswordKey(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSubmit();
-            }
-        }
-
-        function toggleMode() {
-            isLoginMode = !isLoginMode;
-            document.getElementById('formTitle').innerText = isLoginMode ? "Đăng Nhập" : "Đăng Ký";
-            document.getElementById('displayNameGroup').style.display = isLoginMode ? "none" : "block";
-            document.getElementById('btnSubmit').innerText = isLoginMode ? "Đăng Nhập" : "Đăng Ký";
-            document.getElementById('btnSwitch').innerText = isLoginMode ? "Chưa có tài khoản? Đăng ký ngay" : "Đã có tài khoản? Đăng nhập";
-            document.getElementById('errorMsg').innerText = "";
-
-            if (!isLoginMode) {
-                document.getElementById('displayName').focus();
+        function togglePasswordVisibility() {
+            const pwd = document.getElementById("passwordInput");
+            const eye = document.getElementById("eyeIcon");
+            if (pwd.type === "password") {
+                pwd.type = "text";
+                eye.classList.replace("fa-eye", "fa-eye-slash");
             } else {
-                document.getElementById('username').focus();
+                pwd.type = "password";
+                eye.classList.replace("fa-eye-slash", "fa-eye");
             }
         }
 
-        async function handleSubmit() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const displayName = document.getElementById('displayName').value.trim();
-            const errorEl = document.getElementById('errorMsg');
-            errorEl.innerText = "";
+        async function handleSubmit(e) {
+            e.preventDefault();
+            hideAlert();
 
-            if (!username || !password || (!isLoginMode && !displayName)) {
-                errorEl.innerText = "Vui lòng nhập đầy đủ thông tin.";
-                return;
-            }
+            const username = document.getElementById("usernameInput").value.trim();
+            const password = document.getElementById("passwordInput").value;
+            const submitBtn = document.getElementById("submitBtn");
 
-            const endpoint = isLoginMode ? '/api/auth/login' : '/api/auth/register';
-            const payload = isLoginMode
-                ? { username, password }
-                : { username, password, displayName };
+            submitBtn.disabled = true;
+            submitBtn.classList.add("opacity-60");
 
-            try {
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
+            if (currentMode === 'login') {
+                try {
+                    const res = await fetch("/api/v1/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username, password })
+                    });
 
-                if (!res.ok) {
-                    errorEl.innerText = data.message || "Thao tác thất bại.";
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                        showAlert(data.message || "Đăng nhập thất bại!", "error");
+                        return;
+                    }
+
+                    // Lưu trữ độc lập vào sessionStorage cho từng tab trình duyệt
+                    sessionStorage.setItem("jwtToken", data.token);
+                    sessionStorage.setItem("userId", data.userId);
+                    sessionStorage.setItem("username", data.username);
+                    sessionStorage.setItem("displayName", data.displayName);
+                    sessionStorage.setItem("avatarUrl", data.avatarUrl || "");
+
+                    showAlert("Đăng nhập thành công! Đang chuyển hướng...", "success");
+
+                    setTimeout(() => {
+                        window.location.href = "/chat";
+                    }, 500);
+
+                } catch (err) {
+                    showAlert("Không thể kết nối đến máy chủ API.", "error");
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove("opacity-60");
+                }
+            } else {
+                const displayName = document.getElementById("displayNameInput").value.trim();
+                const avatarUrl = document.getElementById("avatarUrlInput").value.trim();
+
+                if (!displayName) {
+                    showAlert("Vui lòng nhập tên hiển thị.", "error");
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove("opacity-60");
                     return;
                 }
 
-                if (isLoginMode) {
-                    localStorage.setItem('jwtToken', data.token);
-                    localStorage.setItem('currentUser', JSON.stringify({
-                        id: data.userId,
-                        username: data.username,
-                        displayName: data.displayName
-                    }));
-                    window.location.href = "/chat";
-                } else {
-                    alert("Đăng ký thành công! Vui lòng đăng nhập.");
-                    toggleMode();
+                try {
+                    const res = await fetch("/api/v1/auth/register", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            username,
+                            password,
+                            displayName,
+                            avatarUrl: avatarUrl || null
+                        })
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                        showAlert(data.message || "Đăng ký thất bại!", "error");
+                        return;
+                    }
+
+                    showAlert("Đăng ký thành công! Hãy đăng nhập ngay.", "success");
+                    switchMode('login');
+                    document.getElementById("usernameInput").value = username;
+                    document.getElementById("passwordInput").value = "";
+
+                } catch (err) {
+                    showAlert("Không thể kết nối đến máy chủ API.", "error");
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove("opacity-60");
                 }
-            } catch (err) {
-                errorEl.innerText = "Lỗi kết nối máy chủ.";
             }
+        }
+
+        function showAlert(msg, type) {
+            const box = document.getElementById("alertBox");
+            box.classList.remove("hidden", "bg-rose-950/40", "text-rose-400", "border-rose-900/60", "bg-emerald-950/40", "text-emerald-400", "border-emerald-900/60");
+
+            if (type === 'error') {
+                box.classList.add("bg-rose-950/40", "text-rose-400", "border-rose-900/60");
+                box.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i><span>${msg}</span>`;
+            } else {
+                box.classList.add("bg-emerald-950/40", "text-emerald-400", "border-emerald-900/60");
+                box.innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${msg}</span>`;
+            }
+        }
+
+        function hideAlert() {
+            document.getElementById("alertBox").classList.add("hidden");
         }
     </script>
 </body>

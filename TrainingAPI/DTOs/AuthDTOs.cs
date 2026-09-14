@@ -2,29 +2,23 @@
 
 namespace TrainingAPI.DTOs
 {
-    public record RegisterDTO
-    {
-        [Required]
-        public string Username { get; init; } = string.Empty;
+    public record LoginRequestDTO(
+        [Required] string Username,
+        [Required] string Password
+    );
 
-        [Required]
-        public string DisplayName { get; init; } = string.Empty;
+    public record LoginResponseDTO(
+        string Token,
+        int UserId,
+        string Username,
+        string DisplayName,
+        string? AvatarUrl
+    );
 
-        [Required]
-        [MinLength(6, ErrorMessage = "Mật khẩu tối thiểu 6 ký tự")]
-        public string Password { get; init; } = string.Empty;
-
-        public int? EmployeeId { get; init; }
-    }
-
-    public record LoginDTO
-    {
-        [Required]
-        public string Username { get; init; } = string.Empty;
-
-        [Required]
-        public string Password { get; init; } = string.Empty;
-    }
-
-    public record AuthResponseDTO(string Token, int UserId, string Username, string DisplayName);
+    public record RegisterRequestDTO(
+        [Required][MaxLength(50)] string Username,
+        [Required] string Password,
+        [Required][MaxLength(100)] string DisplayName,
+        [MaxLength(1000)] string? AvatarUrl
+    );
 }

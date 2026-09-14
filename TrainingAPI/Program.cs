@@ -4,12 +4,18 @@ using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json.Serialization;
 using TrainingAPI.Hubs;
 using TrainingAPI.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    })
     .AddOData(options => options
         .Select()
         .Filter()
@@ -28,30 +34,30 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-options.RequireHttpsMetadata = false;
-options.SaveToken = true;
-options.TokenValidationParameters = new TokenValidationParameters
-{
-    ValidateIssuer = true,
-    ValidateAudience = true,
-    ValidateLifetime = true,
-    ValidateIssuerSigningKey = true,
-    ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "TrainingAPI",
-    ValidAudience = builder.Configuration["Jwt:Audience"] ?? "TrainingAPIClient",
-    IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
-};
-
-options.Events = new JwtBearerEvents
-{
-    OnMessageReceived = context =>
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-    var accessToken = context.Request.Query["access_token"];
-    var path = context.HttpContext.Request.Path;
-    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub", StringComparison.OrdinalIgnoreCase))
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "TrainingAPI",
+        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "TrainingAPIClient",
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub", StringComparison.OrdinalIgnoreCase))
             {
-    context.Token = accessToken;
-}
-return Task.CompletedTask;
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
         }
     };
 });
@@ -93,6 +99,8 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowAll");
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseHttpsRedirection();
+
+app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseAuthentication();

@@ -1,92 +1,390 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
+using System.Data;
+using System.Text.Json;
 using TrainingAPI.DTOs;
 using TrainingAPI.Models;
 
 namespace TrainingAPI.Controllers
 {
-    [Authorize]
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/v1/chat")]
     public class ChatController : ControllerBase
     {
         private readonly CompanyContext _context;
+        private readonly string _connectionString;
 
-        public ChatController(CompanyContext context)
+        public ChatController(CompanyContext context, IConfiguration configuration)
         {
             _context = context;
+            _connectionString = configuration.GetConnectionString("DefaultConnection")
+                ?? _context.Database.GetConnectionString()!;
         }
 
         [HttpGet("conversations")]
-        public async Task<IActionResult> GetConversations()
+        public async Task<IActionResult> GetConversations([FromQuery] int viewerId)
         {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var conversations = new List<ConversationDTO>();
 
-            var conversations = await _context.ConversationItems
-                .Where(c => c.UserOneId == currentUserId || c.UserTwoId == currentUserId)
-                .OrderByDescending(c => c.LastSentAt)
-                .Select(c => new
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_GetConversationList", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@ViewerId", viewerId);
+            await conn.OpenAsync();
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                conversations.Add(new ConversationDTO
                 {
-                    PartnerId = c.UserOneId == currentUserId ? c.UserTwoId : c.UserOneId,
-                    PartnerName = c.UserOneId == currentUserId ? c.UserTwoName : c.UserOneName,
-                    LastMessage = c.LastMessageContent,
-                    LastSentAt = c.LastSentAt,
-                    IsMyMessage = c.LastSenderId == currentUserId
-                })
-                .ToListAsync();
+                    ViewerId = reader.GetInt32("ViewerId"),
+                    ThreadId = reader.GetInt64("ThreadId"),
+                    IsGroup = reader.GetBoolean("IsGroup"),
+                    ThreadName = reader.IsDBNull("ThreadName") ? "Cuộc hội thoại" : reader.GetString("ThreadName"),
+                    ThreadAvatarUrl = reader.IsDBNull("ThreadAvatarUrl") ? null : reader.GetString("ThreadAvatarUrl"),
+                    LastMessageId = reader.IsDBNull("LastMessageId") ? null : reader.GetInt64("LastMessageId"),
+                    LastMessageContent = reader.IsDBNull("LastMessageContent") ? null : reader.GetString("LastMessageContent"),
+                    LastSenderId = reader.IsDBNull("LastSenderId") ? null : reader.GetInt32("LastSenderId"),
+                    LastMessageTimeUTC = reader.IsDBNull("LastMessageTimeUTC") ? null : reader.GetDateTime("LastMessageTimeUTC"),
+                    LastDeliveredMessageId = reader.IsDBNull("LastDeliveredMessageId") ? null : reader.GetInt64("LastDeliveredMessageId"),
+                    LastReadMessageId = reader.IsDBNull("LastReadMessageId") ? null : reader.GetInt64("LastReadMessageId"),
+                    IsMuted = reader.GetBoolean("IsMuted")
+                });
+            }
 
             return Ok(conversations);
         }
 
-        [HttpGet("history/{partnerId:int}")]
-        public async Task<IActionResult> GetChatHistory(int partnerId)
+        [HttpGet("messages")]
+        public async Task<IActionResult> GetThreadMessages(
+            [FromQuery] int viewerId,
+            [FromQuery] long threadId,
+            [FromQuery] long? cursorMessageId = null,
+            [FromQuery] int limit = 20)
         {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var messages = new List<MessageResponseDTO>();
 
-            var paramUserA = new SqlParameter("@UserAId", currentUserId);
-            var paramUserB = new SqlParameter("@UserBId", partnerId);
-
-            var history = await _context.ChatHistoryItems
-                .FromSqlRaw("EXEC dbo.sp_GetChatHistory @UserAId, @UserBId", paramUserA, paramUserB)
-                .ToListAsync();
-
-            return Ok(history);
-        }
-
-        [HttpGet("contacts")]
-        public async Task<IActionResult> GetContacts()
-        {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            var users = await _context.AppUsers
-                .Where(u => u.Id != currentUserId && u.IsActive)
-                .Select(u => new { u.Id, u.DisplayName, u.Username })
-                .ToListAsync();
-
-            return Ok(users);
-        }
-
-        [HttpGet("search-users")]
-        public async Task<IActionResult> SearchUsers([FromQuery] string? keyword)
-        {
-            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            if (string.IsNullOrWhiteSpace(keyword))
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_GetThreadMessages", conn)
             {
-                return Ok(new List<UserSearchDTO>());
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@ViewerId", viewerId);
+            cmd.Parameters.AddWithValue("@ThreadId", threadId);
+            cmd.Parameters.AddWithValue("@CursorMessageId", (object?)cursorMessageId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Limit", limit);
+
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                var attachmentsJson = reader.IsDBNull("AttachmentsJson") ? null : reader.GetString("AttachmentsJson");
+                var reactionsJson = reader.IsDBNull("ReactionsJson") ? null : reader.GetString("ReactionsJson");
+
+                var item = new MessageResponseDTO
+                {
+                    MessageId = reader.GetInt64("MessageId"),
+                    SenderId = reader.GetInt32("SenderId"),
+                    SenderName = reader.GetString("SenderName"),
+                    SenderAvatarUrl = reader.IsDBNull("SenderAvatarUrl") ? null : reader.GetString("SenderAvatarUrl"),
+                    MessageType = reader.GetString("MessageType"),
+                    Content = reader.GetString("Content"),
+                    IsRevoked = reader.GetBoolean("IsRevoked"),
+                    IsEdited = reader.GetBoolean("IsEdited"),
+                    SentAtUTC = reader.GetDateTime("SentAtUTC"),
+                    ParentMessageId = reader.IsDBNull("ParentMessageId") ? null : reader.GetInt64("ParentMessageId"),
+                    ParentSenderName = reader.IsDBNull("ParentSenderName") ? null : reader.GetString("ParentSenderName"),
+                    ParentContent = reader.IsDBNull("ParentContent") ? null : reader.GetString("ParentContent"),
+                    IsPinned = reader.GetBoolean("IsPinned"),
+                    Attachments = string.IsNullOrEmpty(attachmentsJson)
+                        ? new()
+                        : JsonSerializer.Deserialize<List<MessageAttachmentDTO>>(attachmentsJson) ?? new(),
+                    Reactions = string.IsNullOrEmpty(reactionsJson)
+                        ? new()
+                        : JsonSerializer.Deserialize<List<MessageReactionDTO>>(reactionsJson) ?? new()
+                };
+
+                messages.Add(item);
             }
 
-            var paramCurrentUserId = new SqlParameter("@CurrentUserId", currentUserId);
-            var paramKeyword = new SqlParameter("@Keyword", keyword.Trim());
+            return Ok(messages);
+        }
 
-            var users = await _context.Database
-                .SqlQueryRaw<UserSearchDTO>("EXEC dbo.sp_SearchUsersToChat @CurrentUserId, @Keyword", paramCurrentUserId, paramKeyword)
-                .ToListAsync();
+        [HttpGet("users/search")]
+        public async Task<IActionResult> SearchUsers([FromQuery] int currentUserId, [FromQuery] string keyword)
+        {
+            var result = new List<UserSearchDTO>();
 
-            return Ok(users);
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_SearchUsersToChat", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@CurrentUserId", currentUserId);
+            cmd.Parameters.AddWithValue("@Keyword", keyword ?? string.Empty);
+
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                result.Add(new UserSearchDTO(
+                    reader.GetInt32("Id"),
+                    reader.GetString("Username"),
+                    reader.GetString("DisplayName"),
+                    reader.IsDBNull("AvatarUrl") ? null : reader.GetString("AvatarUrl")
+                ));
+            }
+
+            return Ok(result);
+        }
+
+        [HttpGet("threads/{threadId}/participants")]
+        public async Task<IActionResult> GetParticipants([FromRoute] long threadId)
+        {
+            var participants = new List<ParticipantDTO>();
+
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_GetThreadParticipants", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@ThreadId", threadId);
+
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
+            {
+                participants.Add(new ParticipantDTO
+                {
+                    UserId = reader.GetInt32("UserId"),
+                    Username = reader.GetString("Username"),
+                    DisplayName = reader.GetString("DisplayName"),
+                    AvatarUrl = reader.IsDBNull("AvatarUrl") ? null : reader.GetString("AvatarUrl"),
+                    Role = reader.GetString("Role"),
+                    JoinedAtUTC = reader.GetDateTime("JoinedAtUTC"),
+                    LastDeliveredMessageId = reader.IsDBNull("LastDeliveredMessageId") ? null : reader.GetInt64("LastDeliveredMessageId"),
+                    LastReadMessageId = reader.IsDBNull("LastReadMessageId") ? null : reader.GetInt64("LastReadMessageId")
+                });
+            }
+
+            return Ok(participants);
+        }
+
+        [HttpPost("threads")]
+        public async Task<IActionResult> CreateThread([FromQuery] int creatorId, [FromBody] CreateThreadRequestDTO request)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_CreateThread", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@CreatorId", creatorId);
+            cmd.Parameters.AddWithValue("@IsGroup", request.IsGroup);
+            cmd.Parameters.AddWithValue("@Title", (object?)request.Title ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ParticipantIdsJson", JsonSerializer.Serialize(request.ParticipantIds));
+
+            await conn.OpenAsync();
+            var newThreadId = await cmd.ExecuteScalarAsync();
+
+            return Ok(new { threadId = Convert.ToInt64(newThreadId) });
+        }
+
+        [HttpPost("messages")]
+        public async Task<IActionResult> SendMessage([FromQuery] int senderId, [FromBody] SendMessageRequestDTO request)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_SendMessage", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@ThreadId", request.ThreadId);
+            cmd.Parameters.AddWithValue("@SenderId", senderId);
+            cmd.Parameters.AddWithValue("@MessageType", request.MessageType);
+            cmd.Parameters.AddWithValue("@Content", request.Content);
+            cmd.Parameters.AddWithValue("@ParentMessageId", (object?)request.ParentMessageId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ForwardedFromMessageId", (object?)request.ForwardedFromMessageId ?? DBNull.Value);
+
+            await conn.OpenAsync();
+            var newMsgId = await cmd.ExecuteScalarAsync();
+
+            return Ok(new { messageId = Convert.ToInt64(newMsgId) });
+        }
+
+        [HttpPost("threads/{threadId}/read")]
+        public async Task<IActionResult> MarkAsRead([FromRoute] long threadId, [FromQuery] int userId, [FromQuery] long messageId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_MarkAsRead", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@ThreadId", threadId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@MessageId", messageId);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { success = true });
+        }
+
+        [HttpPost("messages/reaction")]
+        public async Task<IActionResult> ToggleReaction([FromQuery] int userId, [FromBody] ToggleReactionRequestDTO request)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_ToggleReaction", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@MessageId", request.MessageId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@ReactionType", request.ReactionType);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { success = true });
+        }
+
+        [HttpPost("messages/{messageId}/revoke")]
+        public async Task<IActionResult> RevokeMessage([FromRoute] long messageId, [FromQuery] int userId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_RevokeMessage", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@MessageId", messageId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { success = true });
+        }
+
+        [HttpPut("messages/{messageId}")]
+        public async Task<IActionResult> EditMessage([FromRoute] long messageId, [FromQuery] int userId, [FromBody] EditMessageRequestDTO request)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_EditMessage", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@MessageId", messageId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@NewContent", request.NewContent);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { success = true });
+        }
+
+        [HttpPost("threads/{threadId}/pin/{messageId}")]
+        public async Task<IActionResult> TogglePin([FromRoute] long threadId, [FromRoute] long messageId, [FromQuery] int userId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_TogglePinMessage", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@ThreadId", threadId);
+            cmd.Parameters.AddWithValue("@MessageId", messageId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { success = true });
+        }
+
+        [HttpDelete("messages/{messageId}/for-me")]
+        public async Task<IActionResult> DeleteForMe([FromRoute] long messageId, [FromQuery] int userId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_DeleteMessageForMe", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@MessageId", messageId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { success = true });
+        }
+
+        // 13. Đổi tên nhóm chat
+        [HttpPut("threads/{threadId}/title")]
+        public async Task<IActionResult> UpdateThreadTitle([FromRoute] long threadId, [FromQuery] int userId, [FromBody] UpdateTitleRequestDTO request)
+        {
+            var isMember = await _context.ThreadParticipants.AnyAsync(tp => tp.ThreadId == threadId && tp.UserId == userId);
+            if (!isMember) return Forbid();
+
+            var thread = await _context.ChatThreads.FirstOrDefaultAsync(t => t.Id == threadId);
+            if (thread == null) return NotFound();
+
+            thread.Title = request.NewTitle;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { success = true, newTitle = thread.Title });
+        }
+
+        // 14. Ẩn / Hiện cuộc hội thoại (gọi sp_ToggleHideThread)
+        [HttpPost("threads/{threadId}/toggle-hide")]
+        public async Task<IActionResult> ToggleHideThread([FromRoute] long threadId, [FromQuery] int userId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("dbo.sp_ToggleHideThread", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@ThreadId", threadId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new { success = true });
+        }
+
+        // 15. Quản lý thành viên (Thêm/Đuổi người)
+        [HttpPost("threads/manage-participant")]
+        public async Task<IActionResult> ManageParticipant([FromBody] ManageParticipantRequestDTO request, [FromQuery] int actionUserId)
+        {
+            try
+            {
+                using var conn = new SqlConnection(_connectionString);
+                using var cmd = new SqlCommand("dbo.sp_ManageParticipant", conn) { CommandType = CommandType.StoredProcedure };
+                cmd.Parameters.AddWithValue("@ThreadId", request.ThreadId);
+                cmd.Parameters.AddWithValue("@ActionUserId", actionUserId);
+                cmd.Parameters.AddWithValue("@TargetUserId", request.TargetUserId);
+                cmd.Parameters.AddWithValue("@ActionType", request.ActionType); // 'ADD' hoặc 'REMOVE'
+                await conn.OpenAsync();
+                await cmd.ExecuteNonQueryAsync();
+
+                return Ok(new { success = true });
+            }
+            catch (SqlException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }
