@@ -38,28 +38,13 @@ namespace TrainingAPI.DTOs
     }
     public class UpdateRoleRequestDTO
     {
-        public long ThreadId { get; set; }
         public int TargetUserId { get; set; }
-
-        [Required]
-        [MaxLength(20)]
-        public string NewRole { get; set; } = "Member";
+        public string NewRole { get; set; } = string.Empty;
     }
     public class MuteThreadRequestDTO
     {
-        public long ThreadId { get; set; }
         public bool IsMuted { get; set; }
         public DateTime? MutedUntilUTC { get; set; }
-    }
-    public class RegisterDeviceRequestDTO
-    {
-        [Required]
-        [MaxLength(255)]
-        public string DeviceToken { get; set; } = string.Empty;
-
-        [Required]
-        [MaxLength(20)]
-        public string Platform { get; set; } = "Web";
     }
     public class ToggleReactionRequestDTO
     {
@@ -84,5 +69,12 @@ namespace TrainingAPI.DTOs
         [System.ComponentModel.DataAnnotations.Required]
         [System.ComponentModel.DataAnnotations.MaxLength(100)]
         public string NewTitle { get; set; } = string.Empty;
+    }
+
+    public class SaveAttachmentRequestDTO
+    {
+        public string FileUrl { get; set; } = string.Empty;
+        public string FileType { get; set; } = string.Empty;
+        public int FileSize { get; set; }
     }
 }

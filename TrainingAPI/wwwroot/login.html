@@ -61,16 +61,6 @@
                 </div>
             </div>
 
-            <!-- Avatar URL (Chỉ hiện khi Đăng ký) -->
-            <div id="avatarUrlField" class="hidden space-y-1.5">
-                <label class="text-xs font-bold text-slate-300">Link Ảnh đại diện (Tùy chọn)</label>
-                <div class="relative">
-                    <i class="fa-solid fa-image absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
-                    <input type="url" id="avatarUrlInput" placeholder="https://example.com/avatar.jpg"
-                           class="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
-                </div>
-            </div>
-
             <!-- Tên đăng nhập -->
             <div class="space-y-1.5">
                 <label class="text-xs font-bold text-slate-300">Tên đăng nhập</label>
@@ -105,7 +95,7 @@
         <!-- Dữ liệu demo gợi ý -->
         <div class="px-8 pb-6 text-center border-t border-slate-800/50 pt-4">
             <p class="text-[11px] text-slate-500">
-                Tài khoản thử nghiệm: <span class="font-semibold text-slate-300">nguyenvana</span> | Pass: <span class="font-semibold text-slate-300">123456</span>[cite: 10]
+                Tài khoản thử nghiệm: <span class="font-semibold text-slate-300">nguyenvana</span> | Pass: <span class="font-semibold text-slate-300">123456</span>
             </p>
         </div>
     </div>
@@ -114,7 +104,7 @@
     <script>
         let currentMode = 'login';
 
-        // Kiểm tra độc lập trên sessionStorage của từng Tab
+        // Kiểm tra xem đã có Token chưa để vào thẳng giao diện Chat
         window.addEventListener("DOMContentLoaded", () => {
             const token = sessionStorage.getItem("jwtToken");
             const userId = sessionStorage.getItem("userId");
@@ -141,7 +131,6 @@
                 : "Tạo tài khoản mới chỉ trong vài giây";
 
             document.getElementById("displayNameField").classList.toggle("hidden", isLogin);
-            document.getElementById("avatarUrlField").classList.toggle("hidden", isLogin);
 
             document.getElementById("submitBtn").querySelector("span").innerText = isLogin ? "Đăng nhập" : "Đăng ký ngay";
 
@@ -186,7 +175,7 @@
                         return;
                     }
 
-                    // Lưu trữ độc lập vào sessionStorage cho từng tab trình duyệt
+                    // Lưu JWT và thông tin user vào sessionStorage
                     sessionStorage.setItem("jwtToken", data.token);
                     sessionStorage.setItem("userId", data.userId);
                     sessionStorage.setItem("username", data.username);
@@ -207,7 +196,6 @@
                 }
             } else {
                 const displayName = document.getElementById("displayNameInput").value.trim();
-                const avatarUrl = document.getElementById("avatarUrlInput").value.trim();
 
                 if (!displayName) {
                     showAlert("Vui lòng nhập tên hiển thị.", "error");
@@ -223,8 +211,7 @@
                         body: JSON.stringify({
                             username,
                             password,
-                            displayName,
-                            avatarUrl: avatarUrl || null
+                            displayName
                         })
                     });
 
