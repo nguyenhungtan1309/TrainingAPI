@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng nhập - Hệ Thống Trò Chuyện Trực Tuyến</title>
+    <title>Đăng nhập - Hệ Thống Trò Chuyện</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -22,235 +22,114 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
-<body class="bg-slate-950 min-h-screen flex items-center justify-center p-4 font-sans antialiased text-slate-200">
+<body class="bg-slate-950 h-screen w-screen flex items-center justify-center font-sans antialiased text-slate-200 selection:bg-indigo-500 selection:text-white relative overflow-hidden">
 
-    <div class="w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 overflow-hidden transition-all duration-300">
-        <!-- Header / Logo -->
-        <div class="p-8 pb-6 text-center bg-gradient-to-b from-indigo-950/30 to-slate-900">
-            <div class="w-16 h-16 bg-indigo-600 text-white rounded-2xl mx-auto flex items-center justify-center text-2xl shadow-lg shadow-indigo-600/30 mb-4">
-                <i class="fa-solid fa-comments"></i>
+    <!-- Background Decor -->
+    <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md shadow-2xl p-8 z-10 relative">
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-600/30 mb-4">
+                <i class="fa-solid fa-comments text-3xl text-white"></i>
             </div>
-            <h2 id="formTitle" class="text-2xl font-black text-slate-100 tracking-tight">Chào mừng trở lại</h2>
-            <p id="formSubtitle" class="text-xs text-slate-400 mt-1">Đăng nhập để kết nối với bạn bè và đồng nghiệp</p>
+            <h2 class="text-2xl font-bold text-slate-100">Đăng nhập</h2>
+            <p class="text-sm text-slate-400 mt-2">Hệ thống Trò chuyện Trực tuyến Nội bộ</p>
         </div>
 
-        <!-- Tab Chuyển Đổi -->
-        <div class="flex border-b border-slate-800 px-8">
-            <button id="tabLogin" onclick="switchMode('login')"
-                    class="flex-1 py-3 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 transition">
-                Đăng nhập
-            </button>
-            <button id="tabRegister" onclick="switchMode('register')"
-                    class="flex-1 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition">
-                Tạo tài khoản
-            </button>
-        </div>
+        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-5">
+            <!-- Box báo lỗi -->
+            <div id="errorMessage" class="hidden bg-rose-500/10 border border-rose-500/50 text-rose-400 text-sm p-3 rounded-xl text-center font-medium"></div>
 
-        <!-- Vùng Thông Báo Alert -->
-        <div id="alertBox" class="hidden mx-8 mt-4 p-3.5 rounded-2xl text-xs flex items-center gap-2 border"></div>
-
-        <!-- Form Đăng Nhập / Đăng Ký -->
-        <form id="authForm" onsubmit="handleSubmit(event)" class="p-8 pt-6 space-y-4">
-            <!-- Tên hiển thị (Chỉ hiện khi Đăng ký) -->
-            <div id="displayNameField" class="hidden space-y-1.5">
-                <label class="text-xs font-bold text-slate-300">Tên hiển thị</label>
-                <div class="relative">
-                    <i class="fa-solid fa-id-badge absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
-                    <input type="text" id="displayNameInput" placeholder="Ví dụ: Nguyễn Văn A"
-                           class="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
-                </div>
-            </div>
-
-            <!-- Tên đăng nhập -->
             <div class="space-y-1.5">
-                <label class="text-xs font-bold text-slate-300">Tên đăng nhập</label>
+                <label class="text-xs font-bold text-slate-400 block">Tên đăng nhập</label>
                 <div class="relative">
-                    <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
-                    <input type="text" id="usernameInput" required placeholder="Nhập username của bạn"
-                           class="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
+                    <i class="fa-solid fa-user absolute left-4 top-3.5 text-slate-500 text-sm"></i>
+                    <input type="text" id="username" required
+                           class="w-full pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                           placeholder="Nhập tên đăng nhập...">
                 </div>
             </div>
 
-            <!-- Mật khẩu -->
             <div class="space-y-1.5">
-                <label class="text-xs font-bold text-slate-300">Mật khẩu</label>
+                <label class="text-xs font-bold text-slate-400 block">Mật khẩu</label>
                 <div class="relative">
-                    <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-500 text-xs"></i>
-                    <input type="password" id="passwordInput" required placeholder="Nhập mật khẩu"
-                           class="w-full pl-9 pr-10 py-2.5 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:bg-slate-800/80 outline-none transition">
-                    <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-slate-200 text-xs">
-                        <i id="eyeIcon" class="fa-regular fa-eye"></i>
-                    </button>
+                    <i class="fa-solid fa-lock absolute left-4 top-3.5 text-slate-500 text-sm"></i>
+                    <input type="password" id="password" required
+                           class="w-full pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                           placeholder="Nhập mật khẩu...">
                 </div>
             </div>
 
-            <!-- Nút Submit -->
-            <button type="submit" id="submitBtn"
-                    class="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
-                <span>Đăng nhập</span>
-                <i class="fa-solid fa-arrow-right text-xs"></i>
+            <button type="submit" id="loginBtn" class="w-full py-3 mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center justify-center group">
+                <span>Đăng nhập vào hệ thống</span>
+                <i class="fa-solid fa-arrow-right ml-2 text-xs group-hover:translate-x-1 transition-transform"></i>
             </button>
         </form>
-
-        <!-- Dữ liệu demo gợi ý -->
-        <div class="px-8 pb-6 text-center border-t border-slate-800/50 pt-4">
-            <p class="text-[11px] text-slate-500">
-                Tài khoản thử nghiệm: <span class="font-semibold text-slate-300">nguyenvana</span> | Pass: <span class="font-semibold text-slate-300">123456</span>
-            </p>
-        </div>
     </div>
 
-    <!-- Script Xử Lý Nghiệp Vụ Auth -->
+    <!-- Script Xử lý Đăng nhập -->
     <script>
-        let currentMode = 'login';
-
-        // Kiểm tra xem đã có Token chưa để vào thẳng giao diện Chat
-        window.addEventListener("DOMContentLoaded", () => {
-            const token = sessionStorage.getItem("jwtToken");
-            const userId = sessionStorage.getItem("userId");
-            if (token && userId && userId !== "0") {
-                window.location.href = "/chat";
-            }
-        });
-
-        function switchMode(mode) {
-            currentMode = mode;
-            const isLogin = mode === 'login';
-
-            document.getElementById("tabLogin").className = isLogin
-                ? "flex-1 py-3 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 transition"
-                : "flex-1 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition";
-
-            document.getElementById("tabRegister").className = !isLogin
-                ? "flex-1 py-3 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 transition"
-                : "flex-1 py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition";
-
-            document.getElementById("formTitle").innerText = isLogin ? "Chào mừng trở lại" : "Đăng ký tài khoản";
-            document.getElementById("formSubtitle").innerText = isLogin
-                ? "Đăng nhập để kết nối với bạn bè và đồng nghiệp"
-                : "Tạo tài khoản mới chỉ trong vài giây";
-
-            document.getElementById("displayNameField").classList.toggle("hidden", isLogin);
-
-            document.getElementById("submitBtn").querySelector("span").innerText = isLogin ? "Đăng nhập" : "Đăng ký ngay";
-
-            hideAlert();
+        // Điều hướng thẳng vào chat nếu đã có token tồn tại
+        if (sessionStorage.getItem("jwtToken")) {
+            window.location.href = "/chat";
         }
 
-        function togglePasswordVisibility() {
-            const pwd = document.getElementById("passwordInput");
-            const eye = document.getElementById("eyeIcon");
-            if (pwd.type === "password") {
-                pwd.type = "text";
-                eye.classList.replace("fa-eye", "fa-eye-slash");
-            } else {
-                pwd.type = "password";
-                eye.classList.replace("fa-eye-slash", "fa-eye");
-            }
-        }
-
-        async function handleSubmit(e) {
+        async function handleLogin(e) {
             e.preventDefault();
-            hideAlert();
+            const btn = document.getElementById("loginBtn");
+            const errorBox = document.getElementById("errorMessage");
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value;
 
-            const username = document.getElementById("usernameInput").value.trim();
-            const password = document.getElementById("passwordInput").value;
-            const submitBtn = document.getElementById("submitBtn");
+            if (!username || !password) return;
 
-            submitBtn.disabled = true;
-            submitBtn.classList.add("opacity-60");
+            // Đổi trạng thái nút
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+            errorBox.classList.add("hidden");
 
-            if (currentMode === 'login') {
-                try {
-                    const res = await fetch("/api/v1/auth/login", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username, password })
-                    });
+            try {
+                const res = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
 
-                    const data = await res.json();
+                const data = await res.json();
 
-                    if (!res.ok) {
-                        showAlert(data.message || "Đăng nhập thất bại!", "error");
-                        return;
-                    }
-
-                    // Lưu JWT và thông tin user vào sessionStorage
+                if (res.ok && data.success) {
+                    // CẬP NHẬT: Lưu cả jwtToken và refreshToken
                     sessionStorage.setItem("jwtToken", data.token);
+                    sessionStorage.setItem("refreshToken", data.refreshToken);
                     sessionStorage.setItem("userId", data.userId);
                     sessionStorage.setItem("username", data.username);
                     sessionStorage.setItem("displayName", data.displayName);
                     sessionStorage.setItem("avatarUrl", data.avatarUrl || "");
 
-                    showAlert("Đăng nhập thành công! Đang chuyển hướng...", "success");
-
-                    setTimeout(() => {
-                        window.location.href = "/chat";
-                    }, 500);
-
-                } catch (err) {
-                    showAlert("Không thể kết nối đến máy chủ API.", "error");
-                } finally {
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove("opacity-60");
+                    // Điều hướng
+                    window.location.href = "/chat";
+                } else {
+                    showError(data.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+                    resetButton();
                 }
-            } else {
-                const displayName = document.getElementById("displayNameInput").value.trim();
-
-                if (!displayName) {
-                    showAlert("Vui lòng nhập tên hiển thị.", "error");
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove("opacity-60");
-                    return;
-                }
-
-                try {
-                    const res = await fetch("/api/v1/auth/register", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            username,
-                            password,
-                            displayName
-                        })
-                    });
-
-                    const data = await res.json();
-
-                    if (!res.ok) {
-                        showAlert(data.message || "Đăng ký thất bại!", "error");
-                        return;
-                    }
-
-                    showAlert("Đăng ký thành công! Hãy đăng nhập ngay.", "success");
-                    switchMode('login');
-                    document.getElementById("usernameInput").value = username;
-                    document.getElementById("passwordInput").value = "";
-
-                } catch (err) {
-                    showAlert("Không thể kết nối đến máy chủ API.", "error");
-                } finally {
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove("opacity-60");
-                }
+            } catch (err) {
+                console.error(err);
+                showError("Không thể kết nối đến máy chủ. Vui lòng thử lại sau.");
+                resetButton();
             }
         }
 
-        function showAlert(msg, type) {
-            const box = document.getElementById("alertBox");
-            box.classList.remove("hidden", "bg-rose-950/40", "text-rose-400", "border-rose-900/60", "bg-emerald-950/40", "text-emerald-400", "border-emerald-900/60");
-
-            if (type === 'error') {
-                box.classList.add("bg-rose-950/40", "text-rose-400", "border-rose-900/60");
-                box.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i><span>${msg}</span>`;
-            } else {
-                box.classList.add("bg-emerald-950/40", "text-emerald-400", "border-emerald-900/60");
-                box.innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${msg}</span>`;
-            }
+        function showError(msg) {
+            const errorBox = document.getElementById("errorMessage");
+            errorBox.innerText = msg;
+            errorBox.classList.remove("hidden");
         }
 
-        function hideAlert() {
-            document.getElementById("alertBox").classList.add("hidden");
+        function resetButton() {
+            const btn = document.getElementById("loginBtn");
+            btn.disabled = false;
+            btn.innerHTML = '<span>Đăng nhập vào hệ thống</span><i class="fa-solid fa-arrow-right ml-2 text-xs group-hover:translate-x-1 transition-transform"></i>';
         }
     </script>
 </body>

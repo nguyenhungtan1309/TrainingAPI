@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TrainingAPI.DTOs;
 using TrainingAPI.Services.Common;
@@ -26,19 +27,42 @@ namespace TrainingAPI.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDTO request, CancellationToken cancellationToken)
         {
-            var (success, error, token, userId, username, displayName, avatarUrl) = await _userService.LoginAsync(request, cancellationToken);
-
+            var (success, error, token, refreshToken, userId, username, displayName, avatarUrl) = await _userService.LoginAsync(request, cancellationToken);
             if (!success) return BadRequest(new { success = false, message = error });
 
             return Ok(new
             {
                 success = true,
-                token = token,
-                userId = userId,
-                username = username,
-                displayName = displayName,
-                avatarUrl = avatarUrl
+                token,
+                refreshToken,
+                userId,
+                username,
+                displayName,
+                avatarUrl
             });
+        }
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] TokenRequestDTO request, CancellationToken cancellationToken)
+        {
+            var (success, error, newAccessToken, newRefreshToken) = await _userService.RefreshTokenAsync(request, cancellationToken);
+            if (!success) return Unauthorized(new { success = false, message = error });
+
+            return Ok(new
+            {
+                success = true,
+                token = newAccessToken,
+                refreshToken = newRefreshToken
+            });
+        }
+
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+        {
+            var userId = User.GetUserId();
+            await _userService.LogoutAsync(userId, cancellationToken);
+            return Ok(new { success = true });
         }
     }
 }

@@ -354,20 +354,79 @@
     <!-- ==================== JAVASCRIPT LOGIC CLIENT ==================== -->
     <script>
         const originalFetch = window.fetch;
+        let isRefreshing = false;
+        let failedQueue = [];
+
+        const processQueue = (error, token = null) => {
+            failedQueue.forEach(prom => {
+                if (error) { prom.reject(error); }
+                else { prom.resolve(token); }
+            });
+            failedQueue = [];
+        };
+
         window.fetch = async function (url, options = {}) {
             options.headers = options.headers || {};
-            const token = sessionStorage.getItem("jwtToken") || sessionStorage.getItem("token") || (window.currentUser && window.currentUser.token);
+            let token = sessionStorage.getItem("jwtToken") || sessionStorage.getItem("token") || (window.currentUser && window.currentUser.token);
+
             if (token) {
-                if (options.headers instanceof Headers) {
-                    options.headers.set("Authorization", `Bearer ${token}`);
-                } else {
-                    options.headers["Authorization"] = `Bearer ${token}`;
-                }
+                options.headers instanceof Headers
+                    ? options.headers.set("Authorization", `Bearer ${token}`)
+                    : options.headers["Authorization"] = `Bearer ${token}`;
             }
-            const response = await originalFetch(url, options);
-            if (response.status === 401) {
-                sessionStorage.clear();
-                window.location.href = "/login";
+
+            let response = await originalFetch(url, options);
+
+            // Bắt lỗi 401: Token hết hạn -> Tự động gọi Refresh Token
+            if (response.status === 401 && !url.includes('/api/v1/auth/refresh')) {
+                if (isRefreshing) {
+                    return new Promise(function (resolve, reject) {
+                        failedQueue.push({ resolve, reject });
+                    }).then(newToken => {
+                        options.headers instanceof Headers
+                            ? options.headers.set("Authorization", `Bearer ${newToken}`)
+                            : options.headers["Authorization"] = `Bearer ${newToken}`;
+                        return originalFetch(url, options);
+                    }).catch(err => response);
+                }
+
+                isRefreshing = true;
+                const refreshToken = sessionStorage.getItem("refreshToken");
+
+                if (refreshToken && token) {
+                    try {
+                        const refreshRes = await originalFetch('/api/v1/auth/refresh', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ accessToken: token, refreshToken: refreshToken })
+                        });
+
+                        if (refreshRes.ok) {
+                            const data = await refreshRes.json();
+                            sessionStorage.setItem("jwtToken", data.token);
+                            sessionStorage.setItem("refreshToken", data.refreshToken);
+                            currentUser.token = data.token;
+
+                            options.headers instanceof Headers
+                                ? options.headers.set("Authorization", `Bearer ${data.token}`)
+                                : options.headers["Authorization"] = `Bearer ${data.token}`;
+
+                            processQueue(null, data.token);
+                            response = await originalFetch(url, options);
+                        } else {
+                            throw new Error("Refresh failed");
+                        }
+                    } catch (error) {
+                        processQueue(error, null);
+                        sessionStorage.clear();
+                        window.location.href = "/login";
+                    } finally {
+                        isRefreshing = false;
+                    }
+                } else {
+                    sessionStorage.clear();
+                    window.location.href = "/login";
+                }
             }
             return response;
         };

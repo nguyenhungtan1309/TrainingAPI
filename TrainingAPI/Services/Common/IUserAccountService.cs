@@ -8,10 +8,11 @@ namespace TrainingAPI.Services.Common
             RegisterRequestDTO request,
             CancellationToken cancellationToken = default);
 
-        Task<(bool Success, string? Error, string? Token, int UserId, string? Username, string? DisplayName, string? AvatarUrl)> LoginAsync(
-             LoginRequestDTO request,
-             CancellationToken cancellationToken = default);
+        Task<(bool Success, string? Error, string? Token, string? RefreshToken, int UserId, string? Username, string? DisplayName, string? AvatarUrl)> LoginAsync(
+            LoginRequestDTO request, CancellationToken cancellationToken = default);
 
+        Task<(bool Success, string? Error, string? NewAccessToken, string? NewRefreshToken)> RefreshTokenAsync(TokenRequestDTO request, CancellationToken cancellationToken = default);
+        Task<(bool Success, string? Error)> LogoutAsync(int userId, CancellationToken cancellationToken = default);
         Task<(bool Success, string? Error)> UpdateProfileAsync(
             int currentUserId,
             UpdateProfileRequestDTO request,

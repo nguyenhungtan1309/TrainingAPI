@@ -66,36 +66,28 @@ namespace TrainingAPI.Services.Common
             }
         }
 
-        public async Task<(bool Success, string? Error, string? Token, int UserId, string? Username, string? DisplayName, string? AvatarUrl)> LoginAsync(
+        public async Task<(bool Success, string? Error, string? Token, string? RefreshToken, int UserId, string? Username, string? DisplayName, string? AvatarUrl)> LoginAsync(
             LoginRequestDTO request,
             CancellationToken cancellationToken = default)
         {
             var username = request.Username.Trim().ToLowerInvariant();
             var user = await _context.AppUsers.FirstOrDefaultAsync(u => u.Username.ToLower() == username, cancellationToken);
 
-            if (user == null)
-            {
-                _logger.LogWarning("Đăng nhập thất bại: Tài khoản '{Username}' không tồn tại", username);
-                return (false, "Tài khoản hoặc mật khẩu không chính xác.", null, 0, null, null, null);
-            }
-
-            if (!user.IsActive)
-            {
-                _logger.LogWarning("Đăng nhập bị từ chối: Tài khoản '{Username}' (Id: {UserId}) đang bị khóa", username, user.Id);
-                return (false, "Tài khoản của bạn hiện đang bị khóa.", null, 0, null, null, null);
-            }
+            if (user == null || !user.IsActive) return (false, "Tài khoản hoặc mật khẩu không chính xác hoặc đã bị khóa.", null, null, 0, null, null, null);
 
             var inputHash = _passwordHasher.Hash(request.Password, user.PasswordSalt);
-            if (inputHash != user.PasswordHash)
-            {
-                _logger.LogWarning("Đăng nhập thất bại: Sai mật khẩu cho tài khoản '{Username}'", username);
-                return (false, "Tài khoản hoặc mật khẩu không chính xác.", null, 0, null, null, null);
-            }
+            if (inputHash != user.PasswordHash) return (false, "Tài khoản hoặc mật khẩu không chính xác.", null, null, 0, null, null, null);
 
             var token = _jwtService.GenerateAccessToken(user);
+            var refreshToken = _jwtService.GenerateRefreshToken();
+
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7); // Refresh token sống 7 ngày
+            await _context.SaveChangesAsync(cancellationToken);
+
             _logger.LogInformation("Người dùng {Username} (Id: {UserId}) đã đăng nhập thành công", user.Username, user.Id);
 
-            return (true, null, token, user.Id, user.Username, user.DisplayName, user.AvatarUrl);
+            return (true, null, token, refreshToken, user.Id, user.Username, user.DisplayName, user.AvatarUrl);
         }
 
         public async Task<(bool Success, string? Error)> UpdateProfileAsync(
@@ -251,6 +243,51 @@ namespace TrainingAPI.Services.Common
                 _logger.LogError(ex, "Lỗi khi tìm kiếm người dùng cho User {UserId} với từ khóa {Keyword}", currentUserId, keyword);
                 return (false, ex.Message, new List<UserSearchDTO>());
             }
+        }
+        public async Task<(bool Success, string? Error, string? NewAccessToken, string? NewRefreshToken)> RefreshTokenAsync(TokenRequestDTO request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var principal = _jwtService.GetPrincipalFromExpiredToken(request.AccessToken);
+                var userIdStr = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(userIdStr, out int userId)) return (false, "Invalid Access Token", null, null);
+
+                var user = await _context.AppUsers.FindAsync(new object[] { userId }, cancellationToken);
+
+                if (user == null || user.RefreshToken != request.RefreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+                {
+                    _logger.LogWarning("Refresh Token thất bại hoặc hết hạn đối với User {UserId}", userId);
+                    return (false, "Invalid or expired Refresh Token. Please login again.", null, null);
+                }
+
+                var newAccessToken = _jwtService.GenerateAccessToken(user);
+                var newRefreshToken = _jwtService.GenerateRefreshToken();
+
+                user.RefreshToken = newRefreshToken;
+                user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+                await _context.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation("User {UserId} đã refresh token thành công", userId);
+                return (true, null, newAccessToken, newRefreshToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi Refresh Token");
+                return (false, "Lỗi hệ thống khi cấp lại token", null, null);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> LogoutAsync(int userId, CancellationToken cancellationToken = default)
+        {
+            var user = await _context.AppUsers.FindAsync(new object[] { userId }, cancellationToken);
+            if (user == null) return (false, "User not found");
+
+            user.RefreshToken = null; // Xóa Refresh Token để ngăn đăng nhập lại bằng token cũ
+            user.RefreshTokenExpiryTime = null;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("User {UserId} đã logout và xóa Refresh Token", userId);
+            return (true, null);
         }
     }
 }

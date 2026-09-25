@@ -26,4 +26,9 @@ namespace TrainingAPI.DTOs
         [Required]
         public string Password { get; set; } = string.Empty;
     }
+    public class TokenRequestDTO
+    {
+        public string AccessToken { get; set; } = null!;
+        public string RefreshToken { get; set; } = null!;
+    }
 }
