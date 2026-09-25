@@ -21,12 +21,13 @@ namespace TrainingAPI.DTOs
         [MaxLength(20)]
         public string MessageType { get; set; } = "Text";
 
-        [Required]
         [MaxLength(4000)]
         public string Content { get; set; } = string.Empty;
 
         public long? ParentMessageId { get; set; }
         public long? ForwardedFromMessageId { get; set; }
+
+        public List<SaveAttachmentRequestDTO>? Attachments { get; set; }
     }
     public class ManageParticipantRequestDTO
     {

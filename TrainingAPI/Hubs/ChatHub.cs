@@ -1,11 +1,11 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using System.Data;
 using System.Security.Claims;
 using TrainingAPI.DTOs;
 using TrainingAPI.Models;
+using TrainingAPI.Services.Common;
+using TrainingAPI.Services.Messaging;
 
 namespace TrainingAPI.Hubs
 {
@@ -13,13 +13,13 @@ namespace TrainingAPI.Hubs
     public class ChatHub : Hub
     {
         private readonly CompanyContext _context;
-        private readonly string _connectionString;
+        private readonly ISqlDataAccess _sql;
 
-        public ChatHub(CompanyContext context, IConfiguration configuration)
+        // [Hạ tầng chung] Không còn tự xây _connectionString trong Hub nữa.
+        public ChatHub(CompanyContext context, ISqlDataAccess sql)
         {
             _context = context;
-            _connectionString = configuration.GetConnectionString("DefaultConnection")
-                ?? _context.Database.GetConnectionString()!;
+            _sql = sql;
         }
 
         private int CurrentUserId =>
@@ -56,22 +56,18 @@ namespace TrainingAPI.Hubs
             var senderId = CurrentUserId;
             if (senderId == 0) return;
 
-            long newMessageId = 0;
-
-            using (var conn = new SqlConnection(_connectionString))
-            using (var cmd = new SqlCommand("dbo.sp_SendMessage", conn) { CommandType = CommandType.StoredProcedure })
+            var newMessageId = await _sql.ExecuteScalarAsync<long>("dbo.sp_SendMessage", p =>
             {
-                cmd.Parameters.AddWithValue("@ThreadId", request.ThreadId);
-                cmd.Parameters.AddWithValue("@SenderId", senderId);
-                cmd.Parameters.AddWithValue("@MessageType", request.MessageType);
-                cmd.Parameters.AddWithValue("@Content", request.Content);
-                cmd.Parameters.AddWithValue("@ParentMessageId", (object?)request.ParentMessageId ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@ForwardedFromMessageId", (object?)request.ForwardedFromMessageId ?? DBNull.Value);
+                p.AddWithValue("@ThreadId", request.ThreadId);
+                p.AddWithValue("@SenderId", senderId);
+                p.AddWithValue("@MessageType", request.MessageType);
+                p.AddWithValue("@Content", request.Content);
+                p.AddWithValue("@ParentMessageId", (object?)request.ParentMessageId ?? DBNull.Value);
+                p.AddWithValue("@ForwardedFromMessageId", (object?)request.ForwardedFromMessageId ?? DBNull.Value);
+            });
 
-                await conn.OpenAsync();
-                var result = await cmd.ExecuteScalarAsync();
-                newMessageId = Convert.ToInt64(result);
-            }
+            var formatter = MessageContentFormatterFactory.Create(request.MessageType);
+            var previewContent = formatter.BuildPreview(request.Content, isRevoked: false);
 
             await Clients.Group($"thread_{request.ThreadId}").SendAsync("ReceiveMessage", new
             {
@@ -81,6 +77,7 @@ namespace TrainingAPI.Hubs
                 SenderName = CurrentUserName,
                 MessageType = request.MessageType,
                 Content = request.Content,
+                PreviewContent = previewContent,
                 ParentMessageId = request.ParentMessageId,
                 SentAtUTC = DateTime.UtcNow
             });
@@ -112,16 +109,12 @@ namespace TrainingAPI.Hubs
             var userId = CurrentUserId;
             if (userId == 0) return;
 
-            using (var conn = new SqlConnection(_connectionString))
-            using (var cmd = new SqlCommand("dbo.sp_ToggleReaction", conn) { CommandType = CommandType.StoredProcedure })
+            await _sql.ExecuteNonQueryAsync("dbo.sp_ToggleReaction", p =>
             {
-                cmd.Parameters.AddWithValue("@MessageId", messageId);
-                cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@ReactionType", reactionType);
-
-                await conn.OpenAsync();
-                await cmd.ExecuteNonQueryAsync();
-            }
+                p.AddWithValue("@MessageId", messageId);
+                p.AddWithValue("@UserId", userId);
+                p.AddWithValue("@ReactionType", reactionType);
+            });
 
             await Clients.Group($"thread_{threadId}").SendAsync("ReactionUpdated", new
             {
@@ -132,25 +125,31 @@ namespace TrainingAPI.Hubs
                 ReactionType = reactionType
             });
         }
+
         public async Task RevokeMessage(long threadId, long messageId)
         {
             var userId = CurrentUserId;
             if (userId == 0) return;
 
-            using (var conn = new SqlConnection(_connectionString))
-            using (var cmd = new SqlCommand("dbo.sp_RevokeMessage", conn) { CommandType = CommandType.StoredProcedure })
+            await _sql.ExecuteNonQueryAsync("dbo.sp_RevokeMessage", p =>
             {
-                cmd.Parameters.AddWithValue("@MessageId", messageId);
-                cmd.Parameters.AddWithValue("@UserId", userId);
+                p.AddWithValue("@MessageId", messageId);
+                p.AddWithValue("@UserId", userId);
+            });
 
-                await conn.OpenAsync();
-                await cmd.ExecuteNonQueryAsync();
-            }
+            // [2.1][Abstract class] Nhánh isRevoked = true của BuildPreview():
+            // dù MessageType gốc là gì (Text/Image/File), formatter tương ứng
+            // đều trả về đúng một câu "Tin nhắn đã bị thu hồi" nhờ phần khung
+            // dùng chung trong lớp cha MessageContentFormatter - lớp con
+            // không cần (và không thể) ghi đè hành vi này.
+            var formatter = MessageContentFormatterFactory.Create("Text");
+            var previewContent = formatter.BuildPreview(rawContent: string.Empty, isRevoked: true);
 
             await Clients.Group($"thread_{threadId}").SendAsync("MessageRevoked", new
             {
                 ThreadId = threadId,
-                MessageId = messageId
+                MessageId = messageId,
+                PreviewContent = previewContent
             });
         }
 
@@ -159,16 +158,12 @@ namespace TrainingAPI.Hubs
             var userId = CurrentUserId;
             if (userId == 0) return;
 
-            using (var conn = new SqlConnection(_connectionString))
-            using (var cmd = new SqlCommand("dbo.sp_MarkAsRead", conn) { CommandType = CommandType.StoredProcedure })
+            await _sql.ExecuteNonQueryAsync("dbo.sp_MarkAsRead", p =>
             {
-                cmd.Parameters.AddWithValue("@ThreadId", threadId);
-                cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@MessageId", messageId);
-
-                await conn.OpenAsync();
-                await cmd.ExecuteNonQueryAsync();
-            }
+                p.AddWithValue("@ThreadId", threadId);
+                p.AddWithValue("@UserId", userId);
+                p.AddWithValue("@MessageId", messageId);
+            });
 
             await Clients.OthersInGroup($"thread_{threadId}").SendAsync("MessageRead", new
             {

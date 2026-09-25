@@ -1,6 +1,5 @@
-﻿using CloudinaryDotNet;
-using CloudinaryDotNet.Actions;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using TrainingAPI.Services.Common;
 
 namespace TrainingAPI.Controllers
 {
@@ -8,59 +7,30 @@ namespace TrainingAPI.Controllers
     [Route("api/v1/attachments")]
     public class AttachmentController : ControllerBase
     {
-        private readonly Cloudinary _cloudinary;
+        private readonly IAttachmentUploader _uploader;
 
-        public AttachmentController(IConfiguration configuration)
+        public AttachmentController(IAttachmentUploader uploader)
         {
-            var acc = new Account(
-                configuration["Cloudinary:CloudName"],
-                configuration["Cloudinary:ApiKey"],
-                configuration["Cloudinary:ApiSecret"]
-            );
-            _cloudinary = new Cloudinary(acc);
-            _cloudinary.Api.Secure = true;
+            _uploader = uploader;
         }
 
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadFile(IFormFile file)
+        [RequestSizeLimit(20 * 1024 * 1024)]
+        public async Task<IActionResult> UploadAttachment([FromForm] IFormFile file, CancellationToken cancellationToken)
         {
-            if (file == null || file.Length == 0)
-                return BadRequest(new { message = "Không tìm thấy file." });
+            var result = await _uploader.UploadAsync(file, cancellationToken);
 
-            var uploadResult = new RawUploadResult();
-            var isImage = file.ContentType.StartsWith("image/");
-
-            using (var stream = file.OpenReadStream())
+            if (!result.Success)
             {
-                if (isImage)
-                {
-                    var uploadParams = new ImageUploadParams
-                    {
-                        File = new FileDescription(file.FileName, stream),
-                        Folder = "chat_system/images"
-                    };
-                    uploadResult = await _cloudinary.UploadAsync(uploadParams);
-                }
-                else
-                {
-                    var uploadParams = new RawUploadParams
-                    {
-                        File = new FileDescription(file.FileName, stream),
-                        Folder = "chat_system/files"
-                    };
-                    uploadResult = await _cloudinary.UploadAsync(uploadParams);
-                }
+                return BadRequest(new { success = false, message = result.ErrorMessage });
             }
-
-            if (uploadResult.Error != null)
-                return StatusCode(500, new { message = uploadResult.Error.Message });
 
             return Ok(new
             {
-                url = uploadResult.SecureUrl.ToString(),
-                fileType = file.ContentType,
-                fileSize = (int)file.Length,
-                isImage = isImage
+                success = true,
+                fileUrl = result.FileUrl,
+                fileType = result.FileType,
+                fileSize = result.FileSize
             });
         }
     }

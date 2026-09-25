@@ -1,12 +1,15 @@
-using Azure.Core;
+using CloudinaryDotNet;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using TrainingAPI.Hubs;
 using TrainingAPI.Middlewares;
+using TrainingAPI.Services.Common;
+using TrainingAPI.Services.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,8 +27,19 @@ builder.Services.AddControllers()
         .SetMaxTop(100)
         .SkipToken());
 
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "Chuoi_Khoa_Bi_Mat_Cuc_Ky_Dai_Va_An_Toan_Tren_32_Ky_Tu_Cho_TrainingAPI";
-var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection(JwtSettings.SectionName));
+var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>() ?? new JwtSettings();
+var keyBytes = Encoding.UTF8.GetBytes(jwtSettings.Key);
+
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var account = new Account(
+        config["Cloudinary:CloudName"],
+        config["Cloudinary:ApiKey"],
+        config["Cloudinary:ApiSecret"]);
+    return new Cloudinary(account);
+});
 
 builder.Services.AddAuthentication(options =>
 {
@@ -42,9 +56,11 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "TrainingAPI",
-        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "TrainingAPIClient",
-        IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
+        ValidIssuer = jwtSettings.Issuer,
+        ValidAudience = jwtSettings.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
+        NameClaimType = ClaimTypes.NameIdentifier,
+        RoleClaimType = ClaimTypes.Role
     };
 
     options.Events = new JwtBearerEvents
@@ -79,6 +95,14 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<TrainingAPI.Models.CompanyContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<IUserAccountService, UserAccountService>();
+builder.Services.AddTransient<IPasswordHasher, Sha256PasswordHasher>();
+builder.Services.AddTransient<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<ISqlDataAccess, SqlDataAccess>();
+builder.Services.AddScoped<IAttachmentUploader, CloudinaryAttachmentUploader>();
+builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
+builder.Services.AddScoped<IChatThreadService, ChatThreadService>();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddLog4Net("log4net.config");

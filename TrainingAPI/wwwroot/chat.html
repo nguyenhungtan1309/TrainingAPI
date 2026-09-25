@@ -353,6 +353,25 @@
 
     <!-- ==================== JAVASCRIPT LOGIC CLIENT ==================== -->
     <script>
+        const originalFetch = window.fetch;
+        window.fetch = async function (url, options = {}) {
+            options.headers = options.headers || {};
+            const token = sessionStorage.getItem("jwtToken") || sessionStorage.getItem("token") || (window.currentUser && window.currentUser.token);
+            if (token) {
+                if (options.headers instanceof Headers) {
+                    options.headers.set("Authorization", `Bearer ${token}`);
+                } else {
+                    options.headers["Authorization"] = `Bearer ${token}`;
+                }
+            }
+            const response = await originalFetch(url, options);
+            if (response.status === 401) {
+                sessionStorage.clear();
+                window.location.href = "/login";
+            }
+            return response;
+        };
+
         const currentUser = {
             id: parseInt(sessionStorage.getItem("userId") || "0"),
             username: sessionStorage.getItem("username") || "",
@@ -582,18 +601,18 @@
                 const muteIcon = item.isMuted ? `<i class="fa-solid fa-bell-slash text-slate-500 text-[10px] ml-1"></i>` : '';
 
                 convEl.innerHTML = `
-                                    <div class="relative flex-shrink-0">
-                                        <img src="${avatar}" class="w-12 h-12 rounded-full object-cover border border-slate-700" alt="">
-                                        ${item.isGroup ? '<span class="absolute -bottom-1 -right-1 bg-indigo-600 text-[10px] w-5 h-5 flex items-center justify-center rounded-full text-white border border-slate-900"><i class="fa-solid fa-users text-[9px]"></i></span>' : ''}
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center justify-between mb-0.5">
-                                            <h4 class="font-bold text-sm truncate flex items-center ${isActive ? 'text-indigo-300' : 'text-slate-100'}">${item.threadName} ${muteIcon}</h4>
-                                            <span class="text-[11px] text-slate-500 flex-shrink-0">${item.lastMessageTimeUTC ? formatShortTime(item.lastMessageTimeUTC) : ''}</span>
+                                        <div class="relative flex-shrink-0">
+                                            <img src="${avatar}" class="w-12 h-12 rounded-full object-cover border border-slate-700" alt="">
+                                            ${item.isGroup ? '<span class="absolute -bottom-1 -right-1 bg-indigo-600 text-[10px] w-5 h-5 flex items-center justify-center rounded-full text-white border border-slate-900"><i class="fa-solid fa-users text-[9px]"></i></span>' : ''}
                                         </div>
-                                        <p class="text-xs text-slate-400 truncate">${snippet}</p>
-                                    </div>
-                                `;
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center justify-between mb-0.5">
+                                                <h4 class="font-bold text-sm truncate flex items-center ${isActive ? 'text-indigo-300' : 'text-slate-100'}">${item.threadName} ${muteIcon}</h4>
+                                                <span class="text-[11px] text-slate-500 flex-shrink-0">${item.lastMessageTimeUTC ? formatShortTime(item.lastMessageTimeUTC) : ''}</span>
+                                            </div>
+                                            <p class="text-xs text-slate-400 truncate">${snippet}</p>
+                                        </div>
+                                    `;
                 listEl.appendChild(convEl);
             });
         }
@@ -748,14 +767,14 @@
                 const replyDate = parentMsg ? formatFullDateTime(parentMsg.sentAtUTC) : formatFullDateTime(msg.sentAtUTC);
 
                 replyHtml = `
-                                    <div class="mb-2.5 p-2.5 rounded-xl bg-black/35 border-l-4 border-slate-400 text-left cursor-pointer hover:bg-black/45 transition">
-                                        <div class="flex items-center space-x-2 text-xs text-slate-300 font-medium">
-                                            <span class="font-bold text-slate-200">${replyAuthor}</span>
-                                            <span class="text-[11px] text-slate-400 font-mono">${replyDate}</span>
+                                        <div class="mb-2.5 p-2.5 rounded-xl bg-black/35 border-l-4 border-slate-400 text-left cursor-pointer hover:bg-black/45 transition">
+                                            <div class="flex items-center space-x-2 text-xs text-slate-300 font-medium">
+                                                <span class="font-bold text-slate-200">${replyAuthor}</span>
+                                                <span class="text-[11px] text-slate-400 font-mono">${replyDate}</span>
+                                            </div>
+                                            <p class="text-xs md:text-sm text-slate-300 mt-1 truncate max-w-md">${replyContent}</p>
                                         </div>
-                                        <p class="text-xs md:text-sm text-slate-300 mt-1 truncate max-w-md">${replyContent}</p>
-                                    </div>
-                                `;
+                                    `;
             }
 
             const reactions = window.activeThreadReactions[msg.messageId] || msg.reactions || [];
@@ -771,72 +790,77 @@
                 const attach = msg.attachments[0];
                 if (msg.messageType === 'Image') {
                     contentDisplay = `
-                                <div class="mt-1">
-                                    <a href="${attach.fileUrl}" target="_blank">
-                                        <img src="${attach.fileUrl}" class="max-w-[200px] md:max-w-[250px] rounded-lg border border-slate-700/50 hover:opacity-90 transition object-cover" alt="Image">
-                                    </a>
-                                </div>`;
+                                    <div class="mt-1">
+                                        <a href="${attach.fileUrl}" target="_blank">
+                                            <img src="${attach.fileUrl}" class="max-w-[200px] md:max-w-[250px] rounded-lg border border-slate-700/50 hover:opacity-90 transition object-cover" alt="Image">
+                                        </a>
+                                    </div>`;
                 } else {
                     const sizeKB = Math.round(attach.fileSize / 1024);
                     contentDisplay = `
-                                <a href="${attach.fileUrl}" target="_blank" class="flex items-center gap-3 bg-slate-900/50 hover:bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 transition mt-1 min-w-[200px]">
-                                    <div class="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-lg flex items-center justify-center text-lg flex-shrink-0">
-                                        <i class="fa-solid fa-file"></i>
-                                    </div>
-                                    <div class="truncate">
-                                        <p class="text-sm font-semibold text-slate-200 truncate underline decoration-transparent hover:decoration-slate-200 transition">Tải tệp đính kèm</p>
-                                        <p class="text-[11px] text-slate-400 uppercase tracking-wider">${sizeKB} KB</p>
-                                    </div>
-                                </a>`;
+                                    <a href="${attach.fileUrl}" target="_blank" class="flex items-center gap-3 bg-slate-900/50 hover:bg-slate-900/80 p-3 rounded-xl border border-slate-700/50 transition mt-1 min-w-[200px]">
+                                        <div class="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-lg flex items-center justify-center text-lg flex-shrink-0">
+                                            <i class="fa-solid fa-file"></i>
+                                        </div>
+                                        <div class="truncate">
+                                            <p class="text-sm font-semibold text-slate-200 truncate underline decoration-transparent hover:decoration-slate-200 transition">Tải tệp đính kèm</p>
+                                            <p class="text-[11px] text-slate-400 uppercase tracking-wider">${sizeKB} KB</p>
+                                        </div>
+                                    </a>`;
                 }
             }
 
             container.innerHTML = `
-                                <div class="flex items-end space-x-2.5 max-w-[85%] md:max-w-[75%] ${isMe ? 'flex-row-reverse space-x-reverse' : ''}">
-                                    ${!isMe ? `<img src="${msg.senderAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.senderName)}&background=6366f1&color=fff`}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-slate-700 mb-1" alt="">` : ''}
+                                    <div class="flex items-end space-x-2.5 max-w-[85%] md:max-w-[75%] ${isMe ? 'flex-row-reverse space-x-reverse' : ''}">
+                                        ${!isMe ? `<img src="${msg.senderAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.senderName)}&background=6366f1&color=fff`}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-slate-700 mb-1" alt="">` : ''}
 
-                                    <div class="relative">
-                                        <div class="px-5 py-3.5 rounded-3xl text-sm md:text-base leading-relaxed shadow-md ${isMe ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-bl-sm'}">
-                                            ${!isMe ? `<p class="font-bold text-xs text-indigo-400 mb-1">${msg.senderName}</p>` : ''}
-                                            ${replyHtml}
-                                            <div id="msg-content-${msg.messageId}" class="break-words">${contentDisplay}</div>
+                                        <div class="relative">
+                                            <div class="px-5 py-3.5 rounded-3xl text-sm md:text-base leading-relaxed shadow-md ${isMe ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-bl-sm'}">
+                                                ${!isMe ? `<p class="font-bold text-xs text-indigo-400 mb-1">${msg.senderName}</p>` : ''}
+                                                ${replyHtml}
+                                                <div id="msg-content-${msg.messageId}" class="break-words">${contentDisplay}</div>
 
-                                            <div class="flex items-center justify-end gap-1.5 mt-1 text-[11px] ${isMe ? 'text-indigo-200/90' : 'text-slate-400'}">
-                                                <span>${formatShortTime(msg.sentAtUTC)}</span>
-                                                ${msg.isEdited ? '<span class="text-[10px]">(đã sửa)</span>' : ''}
-                                            </div>
-                                        </div>
-
-                                        <div class="absolute top-1/2 -translate-y-1/2 ${isMe ? '-left-32' : '-right-32'} hidden group-hover:flex items-center space-x-1.5 bg-slate-800/95 backdrop-blur border border-slate-700 rounded-full px-2.5 py-1.5 shadow-2xl z-30">
-                                            <div class="relative group/picker py-1">
-                                                <button type="button" onclick="toggleReactionPicker(event, ${msg.messageId})" title="Biểu cảm" class="text-slate-400 hover:text-amber-400 p-1 transition flex items-center justify-center">
-                                                    <i class="fa-regular fa-face-smile text-base"></i>
-                                                </button>
-                                                <div id="reaction-picker-${msg.messageId}"
-                                                     class="reaction-picker-menu absolute bottom-full left-1/2 -translate-x-1/2 pb-3 hidden group-hover/picker:block z-40">
-                                                    <div class="flex items-center gap-1.5 bg-slate-800 border border-slate-700 shadow-2xl rounded-full px-3 py-2">
-                                                        <button type="button" onclick="selectReaction(${msg.messageId}, 'like')" class="hover:scale-135 transition text-xl p-1" title="Thích">👍</button>
-                                                        <button type="button" onclick="selectReaction(${msg.messageId}, 'heart')" class="hover:scale-135 transition text-xl p-1" title="Yêu thích">❤️</button>
-                                                        <button type="button" onclick="selectReaction(${msg.messageId}, 'haha')" class="hover:scale-135 transition text-xl p-1" title="Haha">😆</button>
-                                                        <button type="button" onclick="selectReaction(${msg.messageId}, 'wow')" class="hover:scale-135 transition text-xl p-1" title="Wow">😮</button>
-                                                        <button type="button" onclick="selectReaction(${msg.messageId}, 'sad')" class="hover:scale-135 transition text-xl p-1" title="Buồn">😢</button>
-                                                        <button type="button" onclick="selectReaction(${msg.messageId}, 'angry')" class="hover:scale-135 transition text-xl p-1" title="Phẫn nộ">😡</button>
-                                                    </div>
+                                                <div class="flex items-center justify-end gap-1.5 mt-1 text-[11px] ${isMe ? 'text-indigo-200/90' : 'text-slate-400'}">
+                                                    <span>${formatShortTime(msg.sentAtUTC)}</span>
+                                                    ${msg.isEdited ? '<span class="text-[10px]">(đã sửa)</span>' : ''}
                                                 </div>
                                             </div>
-                                            <button type="button" onclick="setReplyTarget(${msg.messageId}, '${escapeHtml(msg.senderName)}', '${escapeHtml(msg.content)}')" title="Trả lời" class="text-slate-400 hover:text-indigo-400 p-1 transition">
-                                                <i class="fa-solid fa-reply text-sm"></i>
-                                            </button>
-                                            ${isMe && !msg.isRevoked ? `
-                                                    <button type="button" onclick="revokeMessage(${msg.messageId})" title="Thu hồi" class="text-slate-400 hover:text-rose-400 p-1 transition">
-                                                        <i class="fa-solid fa-trash-can text-sm"></i>
+
+                                            <div class="absolute top-1/2 -translate-y-1/2 ${isMe ? '-left-32' : '-right-32'} hidden group-hover:flex items-center space-x-1.5 bg-slate-800/95 backdrop-blur border border-slate-700 rounded-full px-2.5 py-1.5 shadow-2xl z-30">
+                                                <div class="relative group/picker py-1">
+                                                    <button type="button" onclick="toggleReactionPicker(event, ${msg.messageId})" title="Biểu cảm" class="text-slate-400 hover:text-amber-400 p-1 transition flex items-center justify-center">
+                                                        <i class="fa-regular fa-face-smile text-base"></i>
                                                     </button>
-                                                ` : ''}
+                                                    <div id="reaction-picker-${msg.messageId}"
+                                                         class="reaction-picker-menu absolute bottom-full left-1/2 -translate-x-1/2 pb-3 hidden group-hover/picker:block z-40">
+                                                        <div class="flex items-center gap-1.5 bg-slate-800 border border-slate-700 shadow-2xl rounded-full px-3 py-2">
+                                                            <button type="button" onclick="selectReaction(${msg.messageId}, 'like')" class="hover:scale-135 transition text-xl p-1" title="Thích">👍</button>
+                                                            <button type="button" onclick="selectReaction(${msg.messageId}, 'heart')" class="hover:scale-135 transition text-xl p-1" title="Yêu thích">❤️</button>
+                                                            <button type="button" onclick="selectReaction(${msg.messageId}, 'haha')" class="hover:scale-135 transition text-xl p-1" title="Haha">😆</button>
+                                                            <button type="button" onclick="selectReaction(${msg.messageId}, 'wow')" class="hover:scale-135 transition text-xl p-1" title="Wow">😮</button>
+                                                            <button type="button" onclick="selectReaction(${msg.messageId}, 'sad')" class="hover:scale-135 transition text-xl p-1" title="Buồn">😢</button>
+                                                            <button type="button" onclick="selectReaction(${msg.messageId}, 'angry')" class="hover:scale-135 transition text-xl p-1" title="Phẫn nộ">😡</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button type="button" onclick="setReplyTarget(${msg.messageId}, '${escapeHtml(msg.senderName)}', '${escapeHtml(msg.content)}')" title="Trả lời" class="text-slate-400 hover:text-indigo-400 p-1 transition">
+                                                    <i class="fa-solid fa-reply text-sm"></i>
+                                                </button>
+                                                ${isMe && !msg.isRevoked && msg.messageType === 'Text' ? `
+                                                        <button type="button" onclick="startInlineEditMessage(${msg.messageId})" title="Chỉnh sửa tin nhắn" class="text-slate-400 hover:text-amber-400 p-1 transition">
+                                                            <i class="fa-solid fa-pen-to-square text-sm"></i>
+                                                        </button>
+                                                    ` : ''}
+                                                ${isMe && !msg.isRevoked ? `
+                                                        <button type="button" onclick="revokeMessage(${msg.messageId})" title="Thu hồi" class="text-slate-400 hover:text-rose-400 p-1 transition">
+                                                            <i class="fa-solid fa-trash-can text-sm"></i>
+                                                        </button>
+                                                    ` : ''}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div id="reactions-container-${msg.messageId}" class="mt-1.5">${reactionsHtml}</div>
-                            `;
+                                    <div id="reactions-container-${msg.messageId}" class="mt-1.5">${reactionsHtml}</div>
+                                `;
             return container;
         }
 
@@ -847,11 +871,11 @@
             reactions.forEach(r => { counts[r.reactionType] = (counts[r.reactionType] || 0) + 1; });
 
             const iconsHtml = Object.keys(counts).map(type => `
-                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-200 shadow-md reaction-bubble">
-                                    <span class="text-sm">${mapIcon[type] || '👍'}</span>
-                                    <span>${counts[type]}</span>
-                                </span>
-                            `).join(' ');
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-200 shadow-md reaction-bubble">
+                                        <span class="text-sm">${mapIcon[type] || '👍'}</span>
+                                        <span>${counts[type]}</span>
+                                    </span>
+                                `).join(' ');
 
             return `<div class="flex items-center space-x-1.5 flex-wrap">${iconsHtml}</div>`;
         }
@@ -962,6 +986,122 @@
         }
 
         // ==========================================
+        // CHỈNH SỬA TIN NHẮN INLINE (KIỂU MICROSOFT TEAMS)
+        // ==========================================
+        function startInlineEditMessage(msgId) {
+            const container = document.getElementById(`msg-content-${msgId}`);
+            if (!container || container.querySelector('.teams-edit-box')) return;
+
+            const currentMsg = window.activeThreadMessagesMap[msgId];
+            const currentContent = currentMsg ? currentMsg.content : container.innerText.trim();
+
+            container.setAttribute("data-original-html", container.innerHTML);
+
+            container.innerHTML = `
+                    <div class="teams-edit-box w-full min-w-[240px] md:min-w-[320px] bg-slate-900/90 border border-slate-600 rounded-xl p-2.5 mt-1 shadow-inner focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition">
+                        <textarea id="edit-textarea-${msgId}"
+                            rows="2"
+                            class="w-full bg-transparent text-slate-100 placeholder-slate-500 text-sm outline-none resize-none break-words leading-relaxed">${escapeHtml(currentContent)}</textarea>
+
+                        <div class="flex items-center justify-end space-x-1.5 mt-2 pt-1 border-t border-slate-700/60">
+                            <!-- Nút Hủy (x) -->
+                            <button type="button" onclick="cancelInlineEditMessage(${msgId})"
+                                title="Hủy (Esc)"
+                                class="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 transition">
+                                <i class="fa-solid fa-xmark text-xs"></i>
+                            </button>
+                            <!-- Nút Xác nhận (V) -->
+                            <button type="button" onclick="submitInlineEditMessage(${msgId})"
+                                title="Lưu thay đổi (Ctrl+Enter)"
+                                class="w-7 h-7 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow transition">
+                                <i class="fa-solid fa-check text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+            const textarea = document.getElementById(`edit-textarea-${msgId}`);
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+            textarea.onkeydown = function (e) {
+                if (e.key === "Escape") {
+                    cancelInlineEditMessage(msgId);
+                } else if (e.key === "Enter" && (e.ctrlKey || !e.shiftKey)) {
+                    e.preventDefault();
+                    submitInlineEditMessage(msgId);
+                }
+            };
+        }
+
+        function cancelInlineEditMessage(msgId) {
+            const container = document.getElementById(`msg-content-${msgId}`);
+            if (!container) return;
+            const originalHtml = container.getAttribute("data-original-html");
+            if (originalHtml) {
+                container.innerHTML = originalHtml;
+                container.removeAttribute("data-original-html");
+            }
+        }
+
+        async function submitInlineEditMessage(msgId) {
+            const textarea = document.getElementById(`edit-textarea-${msgId}`);
+            if (!textarea) return;
+
+            const newContent = textarea.value.trim();
+            if (!newContent) {
+                alert("Nội dung tin nhắn không được để trống!");
+                return;
+            }
+
+            const currentMsg = window.activeThreadMessagesMap[msgId];
+            if (currentMsg && currentMsg.content === newContent) {
+                cancelInlineEditMessage(msgId);
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/v1/chat/messages/${msgId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageId: msgId, newContent: newContent })
+                });
+
+                if (res.ok) {
+                    const container = document.getElementById(`msg-content-${msgId}`);
+                    if (container) {
+                        container.innerHTML = `<span class="font-normal">${escapeHtml(newContent)}</span>`;
+                        container.removeAttribute("data-original-html");
+                    }
+
+                    if (window.activeThreadMessagesMap[msgId]) {
+                        window.activeThreadMessagesMap[msgId].content = newContent;
+                        window.activeThreadMessagesMap[msgId].isEdited = true;
+                    }
+
+                    const bubbleWrap = document.getElementById(`msg-wrap-${msgId}`);
+                    if (bubbleWrap) {
+                        const timeContainer = bubbleWrap.querySelector('.flex.items-center.justify-end');
+                        if (timeContainer && !timeContainer.innerText.includes('(đã sửa)')) {
+                            const editedSpan = document.createElement("span");
+                            editedSpan.className = "text-[10px]";
+                            editedSpan.innerText = "(đã sửa)";
+                            timeContainer.appendChild(editedSpan);
+                        }
+                    }
+
+                    await loadConversations();
+                } else {
+                    const err = await res.json();
+                    alert(err.message || "Không thể cập nhật tin nhắn.");
+                }
+            } catch (err) {
+                console.error("Lỗi khi sửa tin nhắn:", err);
+                alert("Đã xảy ra lỗi khi gửi yêu cầu chỉnh sửa.");
+            }
+        }
+
+        // ==========================================
         // QUẢN TRỊ THÀNH VIÊN NHÓM
         // ==========================================
         async function fetchParticipants(threadId) {
@@ -996,31 +1136,31 @@
                         p.role === 'Deputy' ? `<span class="text-[10px] font-bold text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded border border-sky-700/60">Phó nhóm</span>` : '';
 
                     const promoteBtn = canPromote ? `
-                                <button onclick="changeMemberRole(${p.userId}, '${p.role === 'Deputy' ? 'Member' : 'Deputy'}')" title="Đổi quyền" class="text-slate-500 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-slate-800 transition text-xs">
-                                    <i class="fa-solid fa-shield-halved"></i>
-                                </button>` : '';
+                                    <button onclick="changeMemberRole(${p.userId}, '${p.role === 'Deputy' ? 'Member' : 'Deputy'}')" title="Đổi quyền" class="text-slate-500 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-slate-800 transition text-xs">
+                                        <i class="fa-solid fa-shield-halved"></i>
+                                    </button>` : '';
 
                     const kickBtn = canKick ? `
-                                <button onclick="kickParticipant(${p.userId}, '${escapeHtml(p.displayName)}')" title="Đuổi khỏi nhóm" class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition text-xs">
-                                    <i class="fa-solid fa-user-xmark"></i>
-                                </button>` : '';
+                                    <button onclick="kickParticipant(${p.userId}, '${escapeHtml(p.displayName)}')" title="Đuổi khỏi nhóm" class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800 transition text-xs">
+                                        <i class="fa-solid fa-user-xmark"></i>
+                                    </button>` : '';
 
                     const item = document.createElement("div");
                     item.className = "flex items-center justify-between p-2.5 hover:bg-slate-800/80 rounded-xl transition";
                     item.innerHTML = `
-                                    <div class="flex items-center space-x-3 truncate">
-                                        <img src="${avatar}" class="w-9 h-9 rounded-full object-cover border border-slate-700" alt="">
-                                        <div class="truncate">
-                                            <p class="text-xs font-bold text-slate-200 truncate">${p.displayName}</p>
-                                            <span class="text-[11px] text-slate-400">@${p.username}</span>
+                                        <div class="flex items-center space-x-3 truncate">
+                                            <img src="${avatar}" class="w-9 h-9 rounded-full object-cover border border-slate-700" alt="">
+                                            <div class="truncate">
+                                                <p class="text-xs font-bold text-slate-200 truncate">${p.displayName}</p>
+                                                <span class="text-[11px] text-slate-400">@${p.username}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div class="flex items-center space-x-1.5">
-                                        ${roleBadge}
-                                        ${promoteBtn}
-                                        ${kickBtn}
-                                    </div>
-                                `;
+                                        <div class="flex items-center space-x-1.5">
+                                            ${roleBadge}
+                                            ${promoteBtn}
+                                            ${kickBtn}
+                                        </div>
+                                    `;
                     listEl.appendChild(item);
                 });
             } catch (err) {
@@ -1030,7 +1170,7 @@
 
         async function changeMemberRole(targetUserId, newRole) {
             try {
-                const res = await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/roles?actionUserId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/roles`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ targetUserId: targetUserId, newRole: newRole })
@@ -1047,7 +1187,7 @@
         async function kickParticipant(targetUserId, targetName) {
             if (!confirm(`Bạn có chắc muốn mời [${targetName}] rời khỏi nhóm này không?`)) return;
             try {
-                const res = await fetch(`/api/v1/chat/threads/manage-participant?actionUserId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/chat/threads/manage-participant`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ threadId: currentActiveThread.threadId, targetUserId: targetUserId, actionType: 'REMOVE' })
@@ -1067,7 +1207,7 @@
             if (!newTitle || newTitle.trim() === "" || newTitle.trim() === currentActiveThread.threadName) return;
 
             try {
-                const res = await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/title?userId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/title`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ newTitle: newTitle.trim() })
@@ -1088,7 +1228,7 @@
             if (!confirm(`Bạn có chắc muốn ẩn cuộc trò chuyện [${currentActiveThread.threadName}] không?`)) return;
 
             try {
-                const res = await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/toggle-hide?userId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/toggle-hide`, {
                     method: 'POST'
                 });
                 if (res.ok) {
@@ -1138,7 +1278,7 @@
             const listEl = document.getElementById("searchResultsList");
             if (!kw) { listEl.innerHTML = ""; return; }
 
-            const res = await fetch(`/api/v1/chat/users/search?currentUserId=${currentUser.id}&keyword=${encodeURIComponent(kw)}`);
+            const res = await fetch(`/api/v1/chat/users/search?keyword=${encodeURIComponent(kw)}`);
             const users = await res.json();
             listEl.innerHTML = "";
 
@@ -1160,17 +1300,17 @@
                 }
 
                 item.innerHTML = `
-                                    <div class="flex items-center space-x-3">
-                                        <img src="${u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName)}&background=6366f1&color=fff`}" class="w-10 h-10 rounded-full object-cover border border-slate-700" alt="">
-                                        <div>
-                                            <h5 class="text-xs font-bold text-slate-200">${u.displayName}</h5>
-                                            <span class="text-[11px] text-slate-400">@${u.username}</span>
+                                        <div class="flex items-center space-x-3">
+                                            <img src="${u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName)}&background=6366f1&color=fff`}" class="w-10 h-10 rounded-full object-cover border border-slate-700" alt="">
+                                            <div>
+                                                <h5 class="text-xs font-bold text-slate-200">${u.displayName}</h5>
+                                                <span class="text-[11px] text-slate-400">@${u.username}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <span class="text-xs text-indigo-400 font-semibold hover:underline">
-                                        ${isAddMemberOnlyMode ? 'Thêm vào nhóm' : (isCreatingGroupMode ? '+ Chọn' : 'Nhắn tin')}
-                                    </span>
-                                `;
+                                        <span class="text-xs text-indigo-400 font-semibold hover:underline">
+                                            ${isAddMemberOnlyMode ? 'Thêm vào nhóm' : (isCreatingGroupMode ? '+ Chọn' : 'Nhắn tin')}
+                                        </span>
+                                    `;
                 listEl.appendChild(item);
             });
         }
@@ -1193,9 +1333,9 @@
                 const chip = document.createElement("span");
                 chip.className = "inline-flex items-center gap-1.5 bg-indigo-600/30 border border-indigo-500/50 text-indigo-200 px-2.5 py-1 rounded-full text-xs";
                 chip.innerHTML = `
-                                    ${u.displayName}
-                                    <button onclick="toggleSelectUserForGroup({id: ${u.id}})" class="hover:text-white"><i class="fa-solid fa-xmark text-[10px]"></i></button>
-                                `;
+                                        ${u.displayName}
+                                        <button onclick="toggleSelectUserForGroup({id: ${u.id}})" class="hover:text-white"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+                                    `;
                 container.appendChild(chip);
             });
         }
@@ -1207,7 +1347,7 @@
 
             try {
                 const participantIds = selectedGroupMembers.map(u => u.id);
-                const res = await fetch(`/api/v1/chat/threads?creatorId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/chat/threads`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ isGroup: true, title: title, participantIds: participantIds })
@@ -1222,7 +1362,7 @@
 
         async function addMemberToCurrentGroup(targetUserId) {
             try {
-                const res = await fetch(`/api/v1/chat/threads/manage-participant?actionUserId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/chat/threads/manage-participant`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ threadId: currentActiveThread.threadId, targetUserId: targetUserId, actionType: 'ADD' })
@@ -1239,7 +1379,7 @@
 
         async function startDirectChat(otherUserId) {
             try {
-                const res = await fetch(`/api/v1/chat/threads?creatorId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/chat/threads`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ isGroup: false, participantIds: [otherUserId] })

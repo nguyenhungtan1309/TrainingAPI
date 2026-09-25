@@ -1,135 +1,66 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
-using System.Data;
-using System.Security.Cryptography;
-using System.Text;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using TrainingAPI.DTOs;
-using TrainingAPI.Models;
+using TrainingAPI.Services.Common;
 
 namespace TrainingAPI.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/v1/users")]
+    [Route("api/v1/chat/users")]
     public class UserController : ControllerBase
     {
-        private readonly CompanyContext _context;
-        private readonly string _connectionString;
+        private readonly IUserAccountService _userService;
 
-        public UserController(CompanyContext context, IConfiguration configuration)
+        public UserController(IUserAccountService userService)
         {
-            _context = context;
-            _connectionString = configuration.GetConnectionString("DefaultConnection")
-                ?? _context.Database.GetConnectionString()!;
+            _userService = userService;
         }
 
-        [HttpPost("block")]
-        public async Task<IActionResult> ToggleBlockUser([FromQuery] int userId, [FromBody] ToggleBlockRequestDTO request)
+        [HttpGet("search")]
+        public async Task<IActionResult> Search([FromQuery] string keyword, CancellationToken cancellationToken)
         {
-            try
-            {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("dbo.sp_ToggleBlockUser", conn) { CommandType = CommandType.StoredProcedure };
-
-                cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@BlockedUserId", request.BlockedUserId);
-
-                await conn.OpenAsync();
-                await cmd.ExecuteNonQueryAsync();
-
-                return Ok(new { success = true });
-            }
-            catch (SqlException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-        }
-
-        [HttpPost("device-token")]
-        public async Task<IActionResult> RegisterDevice([FromQuery] int userId, [FromBody] RegisterDeviceRequestDTO request)
-        {
-            try
-            {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("dbo.sp_RegisterDevice", conn) { CommandType = CommandType.StoredProcedure };
-
-                cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@DeviceToken", request.DeviceToken);
-                cmd.Parameters.AddWithValue("@Platform", request.Platform);
-
-                await conn.OpenAsync();
-                await cmd.ExecuteNonQueryAsync();
-
-                return Ok(new { success = true });
-            }
-            catch (SqlException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var currentUserId = User.GetUserId();
+            var (success, error, users) = await _userService.SearchUsersAsync(currentUserId, keyword ?? string.Empty, cancellationToken);
+            if (!success) return BadRequest(new { success = false, message = error });
+            return Ok(users);
         }
 
         [HttpPut("profile")]
-        public async Task<IActionResult> UpdateProfile([FromQuery] int userId, [FromBody] UpdateProfileRequestDTO request)
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequestDTO request, CancellationToken cancellationToken)
         {
-            var user = await _context.AppUsers.FirstOrDefaultAsync(u => u.Id == userId);
-
-            if (user == null || user.IsActive == false)
-                return NotFound(new { message = "Người dùng không tồn tại hoặc đã bị khóa." });
-
-            user.DisplayName = request.DisplayName.Trim();
-
-            if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
-            {
-                user.AvatarUrl = request.AvatarUrl.Trim();
-            }
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = true,
-                displayName = user.DisplayName,
-                avatarUrl = user.AvatarUrl
-            });
+            var userId = User.GetUserId();
+            var (success, error) = await _userService.UpdateProfileAsync(userId, request, cancellationToken);
+            if (!success) return BadRequest(new { success = false, message = error });
+            return Ok(new { success = true });
         }
 
         [HttpPut("change-password")]
-        public async Task<IActionResult> ChangePassword([FromQuery] int userId, [FromBody] ChangePasswordRequestDTO request)
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDTO request, CancellationToken cancellationToken)
         {
-            var user = await _context.AppUsers.FirstOrDefaultAsync(u => u.Id == userId);
-
-            if (user == null || user.IsActive == false)
-                return NotFound(new { message = "Người dùng không tồn tại hoặc đã bị khóa." });
-
-            string oldHash = ComputeSha256Hash(user.PasswordSalt + request.OldPassword);
-            if (!string.Equals(user.PasswordHash, oldHash, StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { message = "Mật khẩu cũ không chính xác." });
-            }
-
-            string newSalt = Guid.NewGuid().ToString("N").Substring(0, 16);
-            string newHash = ComputeSha256Hash(newSalt + request.NewPassword);
-
-            user.PasswordSalt = newSalt;
-            user.PasswordHash = newHash;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Đổi mật khẩu thành công." });
+            var userId = User.GetUserId();
+            var (success, error) = await _userService.ChangePasswordAsync(userId, request, cancellationToken);
+            if (!success) return BadRequest(new { success = false, message = error });
+            return Ok(new { success = true });
         }
 
-        private string ComputeSha256Hash(string rawData)
+        [HttpPost("block")]
+        public async Task<IActionResult> ToggleBlock([FromBody] ToggleBlockRequestDTO request, CancellationToken cancellationToken)
         {
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
-            }
+            var currentUserId = User.GetUserId();
+            var (success, error) = await _userService.ToggleBlockUserAsync(currentUserId, request.BlockedUserId, cancellationToken);
+            if (!success) return BadRequest(new { success = false, message = error });
+            return Ok(new { success = true });
+        }
+
+        [HttpPost("device")]
+        public async Task<IActionResult> RegisterDevice([FromBody] RegisterDeviceRequestDTO request, CancellationToken cancellationToken)
+        {
+            var userId = User.GetUserId();
+            var (success, error) = await _userService.RegisterDeviceAsync(userId, request, cancellationToken);
+            if (!success) return BadRequest(new { success = false, message = error });
+            return Ok(new { success = true });
         }
     }
 }
