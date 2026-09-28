@@ -51,7 +51,7 @@ namespace TrainingAPI.Services.Messaging
                         parameters.Add(new SqlParameter("@Content", SqlDbType.NVarChar, 4000) { Value = (object?)request.Content ?? string.Empty });
                         parameters.Add(new SqlParameter("@ParentMessageId", SqlDbType.BigInt) { Value = (object?)request.ParentMessageId ?? DBNull.Value });
                         parameters.Add(new SqlParameter("@ForwardedFromMessageId", SqlDbType.BigInt) { Value = (object?)request.ForwardedFromMessageId ?? DBNull.Value });
-                        parameters.Add(new SqlParameter("@ClientMessageId", SqlDbType.UniqueIdentifier) { Value = DBNull.Value });
+                        parameters.Add(new SqlParameter("@ClientMessageId", SqlDbType.UniqueIdentifier) { Value = (object?)request.ClientMessageId ?? DBNull.Value });
                         parameters.Add(new SqlParameter("@AttachmentsJson", SqlDbType.NVarChar, -1) { Value = (object?)attachmentsJson ?? DBNull.Value });
                     },
                     cancellationToken);
@@ -313,6 +313,34 @@ namespace TrainingAPI.Services.Messaging
             catch (SqlException ex)
             {
                 _logger.LogError(ex, "Lỗi khi xóa tin nhắn {MessageId} phía tôi cho User {UserId}", messageId, userId);
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> MarkAsReadAsync(
+            int userId,
+            long threadId,
+            long messageId,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await _db.ExecuteNonQueryAsync(
+                    "dbo.sp_MarkAsRead",
+                    parameters =>
+                    {
+                        parameters.Add(new SqlParameter("@ThreadId", SqlDbType.BigInt) { Value = threadId });
+                        parameters.Add(new SqlParameter("@UserId", SqlDbType.Int) { Value = userId });
+                        parameters.Add(new SqlParameter("@MessageId", SqlDbType.BigInt) { Value = messageId });
+                    },
+                    cancellationToken);
+
+                await _conversationCache.InvalidateAsync(userId, cancellationToken);
+                return (true, null);
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(ex, "Lỗi SQL khi đánh dấu đã đọc: User {UserId}, Thread {ThreadId}, Message {MessageId}", userId, threadId, messageId);
                 return (false, ex.Message);
             }
         }

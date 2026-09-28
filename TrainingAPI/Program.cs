@@ -121,7 +121,16 @@ builder.Logging.AddLog4Net("log4net.config");
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = "localhost:6379";
+    var redisOptions = StackExchange.Redis.ConfigurationOptions.Parse(
+        builder.Configuration["Redis:Configuration"] ?? "localhost:6379");
+    redisOptions.AbortOnConnectFail = false;                                
+    redisOptions.ConnectTimeout = 500;                                    
+    redisOptions.SyncTimeout = 500;
+    redisOptions.AsyncTimeout = 500;
+    redisOptions.ConnectRetry = 1;
+    redisOptions.BacklogPolicy = StackExchange.Redis.BacklogPolicy.FailFast;
+
+    options.ConfigurationOptions = redisOptions;
     options.InstanceName = "TrainingAPI_";
 });
 

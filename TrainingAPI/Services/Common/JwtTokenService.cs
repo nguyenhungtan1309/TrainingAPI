@@ -24,6 +24,7 @@ namespace TrainingAPI.Services.Common
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim("DisplayName", user.DisplayName),
+                new Claim(ClaimTypes.Role, user.SystemRole),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 
@@ -34,7 +35,6 @@ namespace TrainingAPI.Services.Common
                 issuer: _jwtSettings.Issuer,
                 audience: _jwtSettings.Audience,
                 claims: claims,
-                // Tuổi thọ Access Token chỉ nên để ngắn (ví dụ 15 phút - 1 giờ)
                 expires: DateTime.UtcNow.AddMinutes(_jwtSettings.DurationInMinutes),
                 signingCredentials: creds
             );
@@ -60,7 +60,7 @@ namespace TrainingAPI.Services.Common
                 ValidAudience = _jwtSettings.Audience,
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key)),
-                ValidateLifetime = false // Không kiểm tra hạn lúc lấy claims từ token cũ
+                ValidateLifetime = false
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();

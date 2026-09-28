@@ -33,6 +33,12 @@ namespace TrainingAPI.Services.Common
             RegisterDeviceRequestDTO request,
             CancellationToken cancellationToken = default);
 
+        Task<(bool Success, string? Error)> SetUserActiveStatusAsync(
+            int adminUserId,
+            int targetUserId,
+            bool isActive,
+            CancellationToken cancellationToken = default);
+
         Task<(bool Success, string? Error, List<UserSearchDTO> Users)> SearchUsersAsync(
             int currentUserId,
             string keyword,

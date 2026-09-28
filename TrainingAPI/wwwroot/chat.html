@@ -377,7 +377,6 @@
 
             let response = await originalFetch(url, options);
 
-            // Bắt lỗi 401: Token hết hạn -> Tự động gọi Refresh Token
             if (response.status === 401 && !url.includes('/api/v1/auth/refresh')) {
                 if (isRefreshing) {
                     return new Promise(function (resolve, reject) {
@@ -531,7 +530,7 @@
             if (!newName) { alert("Tên hiển thị không được để trống!"); return; }
 
             try {
-                const res = await fetch(`/api/v1/users/profile?userId=${currentUser.id}`, {
+                const res = await fetch(`/api/v1/users/profile`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ displayName: newName, avatarUrl: newAvatar })
@@ -587,33 +586,15 @@
                 const msgType = uploadData.isImage ? "Image" : "File";
                 const msgContent = uploadData.isImage ? "[Hình ảnh]" : `[Tệp đính kèm: ${file.name}]`;
 
-                const msgRes = await fetch(`/api/v1/chat/messages?senderId=${currentUser.id}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        threadId: currentActiveThread.threadId,
-                        messageType: msgType,
-                        content: msgContent,
-                        parentMessageId: activeReplyingMessage ? activeReplyingMessage.messageId : null
-                    })
-                });
-                const msgData = await msgRes.json();
+                const parentId = activeReplyingMessage ? activeReplyingMessage.messageId : null;
 
-                await fetch(`/api/v1/chat/messages/${msgData.messageId}/attachments`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        fileUrl: uploadData.url,
-                        fileType: uploadData.fileType,
-                        fileSize: uploadData.fileSize
-                    })
-                });
+                const sent = await chatSignalR.sendMessage(
+                    currentActiveThread.threadId, msgContent, msgType, parentId,
+                    [{ fileUrl: uploadData.url, fileType: uploadData.fileType, fileSize: uploadData.fileSize }]);
+                if (!sent) throw new Error("Không gửi được tin nhắn");
 
                 cancelReply();
                 scrollToBottom();
-
-                // Gửi Socket cho realtime
-                chatSignalR.sendMessage(currentActiveThread.threadId, msgContent, msgType, null);
 
             } catch (err) {
                 console.error(err);
@@ -630,7 +611,7 @@
         // ==========================================
         async function loadConversations() {
             try {
-                const res = await fetch(`/api/v1/chat/conversations?viewerId=${currentUser.id}`);
+                const res = await fetch(`/api/v1/chat/conversations`);
                 const data = await res.json();
                 allConversationsCache = data;
                 renderConversationList(data);
@@ -717,7 +698,6 @@
             document.getElementById("activeThreadName").innerText = thread.threadName;
             document.getElementById("activeThreadAvatar").src = thread.threadAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(thread.threadName)}&background=6366f1&color=fff`;
 
-            // UI Nút Mute
             const muteIcon = document.getElementById("muteThreadIcon");
             if (isCurrentThreadMuted) {
                 muteIcon.className = "fa-solid fa-bell-slash text-rose-400";
@@ -743,7 +723,7 @@
             isCurrentThreadMuted = !isCurrentThreadMuted;
 
             try {
-                await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/mute?userId=${currentUser.id}`, {
+                await fetch(`/api/v1/chat/threads/${currentActiveThread.threadId}/mute`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ isMuted: isCurrentThreadMuted, mutedUntilUTC: null })
@@ -751,7 +731,7 @@
 
                 const muteIcon = document.getElementById("muteThreadIcon");
                 muteIcon.className = isCurrentThreadMuted ? "fa-solid fa-bell-slash text-rose-400" : "fa-solid fa-bell text-slate-400 group-hover:text-indigo-400";
-                await loadConversations(); // Update lại icon ở sidebar
+                await loadConversations();
             } catch (err) {
                 console.error(err);
             }
@@ -759,7 +739,7 @@
 
         async function fetchThreadMessages(threadId, cursorId = null) {
             try {
-                const url = `/api/v1/chat/messages?viewerId=${currentUser.id}&threadId=${threadId}&limit=20${cursorId ? `&cursorMessageId=${cursorId}` : ''}`;
+                const url = `/api/v1/chat/messages?threadId=${threadId}&limit=20${cursorId ? `&cursorMessageId=${cursorId}` : ''}`;
                 const res = await fetch(url);
                 const messages = await res.json();
 
@@ -839,7 +819,6 @@
             const reactions = window.activeThreadReactions[msg.messageId] || msg.reactions || [];
             const reactionsHtml = renderReactionsSummary(reactions, msg.messageId);
 
-            // Render Nội dung (Text / Ảnh / File / Thu hồi)
             let contentDisplay = `<span class="font-normal">${msg.content}</span>`;
 
             if (msg.isRevoked) {
@@ -988,8 +967,17 @@
             if (!text || !currentActiveThread) return;
 
             const parentId = activeReplyingMessage ? activeReplyingMessage.messageId : null;
-            await chatSignalR.sendMessage(currentActiveThread.threadId, text, "Text", parentId);
 
+            window.pendingClientMessageId = window.pendingClientMessageId || chatSignalR.newClientMessageId();
+            const sent = await chatSignalR.sendMessage(
+                currentActiveThread.threadId, text, "Text", parentId, null, window.pendingClientMessageId);
+
+            if (!sent) {
+                alert("Chưa gửi được tin nhắn, vui lòng thử lại.");
+                return;
+            }
+
+            window.pendingClientMessageId = null;
             input.value = "";
             cancelReply();
             scrollToBottom();
@@ -1045,7 +1033,7 @@
         }
 
         // ==========================================
-        // CHỈNH SỬA TIN NHẮN INLINE (KIỂU MICROSOFT TEAMS)
+        // CHỈNH SỬA TIN NHẮN INLINE
         // ==========================================
         function startInlineEditMessage(msgId) {
             const container = document.getElementById(`msg-content-${msgId}`);
@@ -1165,7 +1153,7 @@
         // ==========================================
         async function fetchParticipants(threadId) {
             try {
-                const res = await fetch(`/api/v1/chat/threads/${threadId}/participants?viewerId=${currentUser.id}`);
+                const res = await fetch(`/api/v1/chat/threads/${threadId}/participants`);
                 const participants = await res.json();
                 document.getElementById("participantCount").innerText = participants.length;
 

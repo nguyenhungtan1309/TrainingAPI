@@ -1,6 +1,7 @@
 ﻿using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Diagnostics;
 using System.Text.Json;
 using TrainingAPI.DTOs;
 using TrainingAPI.Models;
@@ -116,17 +117,26 @@ namespace TrainingAPI.Services.Messaging
         {
             bool canUseCache = beforeTimeUTC is null;
 
+            var totalWatch = Stopwatch.StartNew();
+            long cacheReadMs = 0, dbMs = 0, cacheWriteMs = 0;
+
             if (canUseCache)
             {
+                var stepWatch = Stopwatch.StartNew();
                 var cached = await _conversationCache.GetFirstPageAsync(viewerId, top, cancellationToken);
+                cacheReadMs = stepWatch.ElapsedMilliseconds;
+
                 if (cached is not null)
                 {
-                    return (true, null, cached);
+                    _logger.LogInformation("Tải danh sách hội thoại User {ViewerId}: nguồn=Redis, cache={CacheMs}ms, tổng={TotalMs}ms",
+                        viewerId, cacheReadMs, totalWatch.ElapsedMilliseconds);
+                    return (true, null, cached); // cache hit - không đụng SQL Server
                 }
             }
 
             try
             {
+                var dbWatch = Stopwatch.StartNew();
                 await using var result = await _db.ExecuteReaderAsync(
                     "dbo.sp_GetConversationListV2",
                     parameters =>
@@ -159,10 +169,18 @@ namespace TrainingAPI.Services.Messaging
                     });
                 }
 
+                dbMs = dbWatch.ElapsedMilliseconds;
+
                 if (canUseCache)
                 {
+                    var writeWatch = Stopwatch.StartNew();
                     await _conversationCache.SetFirstPageAsync(viewerId, top, list, cancellationToken);
+                    cacheWriteMs = writeWatch.ElapsedMilliseconds;
                 }
+
+                _logger.LogInformation(
+                    "Tải danh sách hội thoại User {ViewerId}: nguồn=SQL, đọcCache={CacheReadMs}ms, sql={DbMs}ms, ghiCache={CacheWriteMs}ms, tổng={TotalMs}ms, số hội thoại={Count}",
+                    viewerId, cacheReadMs, dbMs, cacheWriteMs, totalWatch.ElapsedMilliseconds, list.Count);
 
                 return (true, null, list);
             }

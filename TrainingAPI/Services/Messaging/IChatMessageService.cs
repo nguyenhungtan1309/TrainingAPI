@@ -37,6 +37,12 @@ namespace TrainingAPI.Services.Messaging
             long messageId,
             CancellationToken cancellationToken = default);
 
+        Task<(bool Success, string? Error)> MarkAsReadAsync(
+            int userId,
+            long threadId,
+            long messageId,
+            CancellationToken cancellationToken = default);
+
         Task<(bool Success, string? Error)> ToggleReactionAsync(
             int userId,
             ToggleReactionRequestDTO request,

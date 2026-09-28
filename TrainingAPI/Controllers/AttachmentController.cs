@@ -35,6 +35,7 @@ namespace TrainingAPI.Controllers
             return Ok(new
             {
                 success = true,
+                url = result.FileUrl,
                 fileUrl = result.FileUrl,
                 fileType = result.FileType,
                 fileSize = result.FileSize,

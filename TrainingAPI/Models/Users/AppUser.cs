@@ -1,8 +1,18 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace TrainingAPI.Models.Users
 {
+    public static class SystemRoles
+    {
+        public const string User = "User";
+        public const string Admin = "Admin";
+
+        public static bool IsValid(string? role) => role == User || role == Admin;
+    }
+
     [Table("AppUser")]
     public class AppUser
     {
@@ -33,6 +43,9 @@ namespace TrainingAPI.Models.Users
         public DateTime? LastActiveAtUTC { get; private set; }
 
         public DateTime CreatedAtUTC { get; private set; } = DateTime.UtcNow;
+
+        [MaxLength(20)]
+        public string SystemRole { get; private set; } = SystemRoles.User;
 
         public string? RefreshToken { get; private set; }
         public DateTime? RefreshTokenExpiryTime { get; private set; }
@@ -85,12 +98,21 @@ namespace TrainingAPI.Models.Users
 
         public void RecordActivity() => LastActiveAtUTC = DateTime.UtcNow;
 
-        public void SetRefreshToken(string token, DateTime expiresAtUTC)
+        public void SetSystemRole(string role)
         {
-            if (string.IsNullOrWhiteSpace(token))
-                throw new ArgumentException("Refresh token không được để trống.", nameof(token));
+            if (!SystemRoles.IsValid(role))
+                throw new ArgumentException("Vai trò hệ thống không hợp lệ (chỉ nhận User hoặc Admin).", nameof(role));
 
-            RefreshToken = token;
+            SystemRole = role;
+        }
+
+        /// </summary>
+        public void SetRefreshToken(string tokenHash, DateTime expiresAtUTC)
+        {
+            if (string.IsNullOrWhiteSpace(tokenHash))
+                throw new ArgumentException("Refresh token (đã băm) không được để trống.", nameof(tokenHash));
+
+            RefreshToken = tokenHash;
             RefreshTokenExpiryTime = expiresAtUTC;
         }
 
@@ -100,12 +122,14 @@ namespace TrainingAPI.Models.Users
             RefreshTokenExpiryTime = null;
         }
 
-        public bool IsRefreshTokenValid(string providedToken)
+        public bool IsRefreshTokenValid(string providedTokenHash)
         {
-            return !string.IsNullOrEmpty(RefreshToken)
-                && RefreshToken == providedToken
-                && RefreshTokenExpiryTime.HasValue
-                && RefreshTokenExpiryTime.Value > DateTime.UtcNow;
+            if (string.IsNullOrEmpty(RefreshToken) || string.IsNullOrEmpty(providedTokenHash)) return false;
+            if (!RefreshTokenExpiryTime.HasValue || RefreshTokenExpiryTime.Value <= DateTime.UtcNow) return false;
+
+            return CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(RefreshToken),
+                Encoding.UTF8.GetBytes(providedTokenHash));
         }
     }
 }

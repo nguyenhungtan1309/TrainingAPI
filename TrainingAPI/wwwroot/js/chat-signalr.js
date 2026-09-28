@@ -57,17 +57,40 @@
         }
     }
 
-    async sendMessage(threadId, content, messageType = "Text", parentMessageId = null) {
-        if (!this.isConnected) return;
+    /**
+     * Sinh mã GUID cho mỗi lần gửi tin (ClientMessageId). Có bản dự phòng vì crypto.randomUUID chỉ
+     * tồn tại ở ngữ cảnh bảo mật (https hoặc localhost) - truy cập qua http://<IP-LAN> sẽ không có.
+     */
+    newClientMessageId() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+            return window.crypto.randomUUID();
+        }
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+            const r = Math.floor(Math.random() * 16);
+            return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+        });
+    }
+
+    /**
+     * Gửi tin nhắn. Trả về true/false để nơi gọi biết có thành công không.
+     * clientMessageId: nếu truyền lại CÙNG một mã khi gửi lại (retry), server trả về tin đã tạo
+     * thay vì tạo tin trùng. attachments: [{ fileUrl, fileType, fileSize }] cho tin Image/File.
+     */
+    async sendMessage(threadId, content, messageType = "Text", parentMessageId = null, attachments = null, clientMessageId = null) {
+        if (!this.isConnected) return false;
         try {
             await this.connection.invoke("SendMessage", {
                 threadId: threadId,
                 content: content,
                 messageType: messageType,
-                parentMessageId: parentMessageId
+                parentMessageId: parentMessageId,
+                attachments: attachments,
+                clientMessageId: clientMessageId || this.newClientMessageId()
             });
+            return true;
         } catch (err) {
             console.error("Lỗi invoke SendMessage:", err);
+            return false;
         }
     }
 

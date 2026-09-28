@@ -28,6 +28,8 @@ namespace TrainingAPI.DTOs
         public long? ForwardedFromMessageId { get; set; }
 
         public List<SaveAttachmentRequestDTO>? Attachments { get; set; }
+
+        public Guid? ClientMessageId { get; set; }
     }
     public class ManageParticipantRequestDTO
     {
