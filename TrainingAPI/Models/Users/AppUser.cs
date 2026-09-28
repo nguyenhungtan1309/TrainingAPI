@@ -34,8 +34,8 @@ namespace TrainingAPI.Models.Users
 
         public DateTime CreatedAtUTC { get; private set; } = DateTime.UtcNow;
 
-        public string? RefreshToken { get; set; }
-        public DateTime? RefreshTokenExpiryTime { get; set; }
+        public string? RefreshToken { get; private set; }
+        public DateTime? RefreshTokenExpiryTime { get; private set; }
         private AppUser()
         {
         }
@@ -84,5 +84,28 @@ namespace TrainingAPI.Models.Users
         public void Activate() => IsActive = true;
 
         public void RecordActivity() => LastActiveAtUTC = DateTime.UtcNow;
+
+        public void SetRefreshToken(string token, DateTime expiresAtUTC)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                throw new ArgumentException("Refresh token không được để trống.", nameof(token));
+
+            RefreshToken = token;
+            RefreshTokenExpiryTime = expiresAtUTC;
+        }
+
+        public void ClearRefreshToken()
+        {
+            RefreshToken = null;
+            RefreshTokenExpiryTime = null;
+        }
+
+        public bool IsRefreshTokenValid(string providedToken)
+        {
+            return !string.IsNullOrEmpty(RefreshToken)
+                && RefreshToken == providedToken
+                && RefreshTokenExpiryTime.HasValue
+                && RefreshTokenExpiryTime.Value > DateTime.UtcNow;
+        }
     }
 }

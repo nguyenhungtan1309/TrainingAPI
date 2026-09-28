@@ -1,8 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using TrainingAPI.Services.Common;
 
 namespace TrainingAPI.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/v1/attachments")]
     public class AttachmentController : ControllerBase
@@ -22,7 +24,12 @@ namespace TrainingAPI.Controllers
 
             if (!result.Success)
             {
-                return BadRequest(new { success = false, message = result.ErrorMessage });
+                var body = new { success = false, message = result.ErrorMessage };
+                var msg = (result.ErrorMessage ?? string.Empty).ToLowerInvariant();
+
+                if (msg.Contains("không hợp lệ")) return BadRequest(body);
+                if (msg.Contains("vượt quá")) return StatusCode(StatusCodes.Status413PayloadTooLarge, body);
+                return StatusCode(StatusCodes.Status502BadGateway, body);
             }
 
             return Ok(new
@@ -30,7 +37,8 @@ namespace TrainingAPI.Controllers
                 success = true,
                 fileUrl = result.FileUrl,
                 fileType = result.FileType,
-                fileSize = result.FileSize
+                fileSize = result.FileSize,
+                isImage = result.FileType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true
             });
         }
     }

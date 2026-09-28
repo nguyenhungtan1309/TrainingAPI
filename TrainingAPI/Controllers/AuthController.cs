@@ -20,7 +20,7 @@ namespace TrainingAPI.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterRequestDTO request, CancellationToken cancellationToken)
         {
             var (success, error, userId) = await _userService.RegisterAsync(request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true, userId });
         }
 
@@ -28,7 +28,7 @@ namespace TrainingAPI.Controllers
         public async Task<IActionResult> Login([FromBody] LoginRequestDTO request, CancellationToken cancellationToken)
         {
             var (success, error, token, refreshToken, userId, username, displayName, avatarUrl) = await _userService.LoginAsync(request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return Unauthorized(new { success = false, message = error });
 
             return Ok(new
             {

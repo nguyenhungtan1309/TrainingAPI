@@ -81,8 +81,7 @@ namespace TrainingAPI.Services.Common
             var token = _jwtService.GenerateAccessToken(user);
             var refreshToken = _jwtService.GenerateRefreshToken();
 
-            user.RefreshToken = refreshToken;
-            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7); // Refresh token sống 7 ngày
+            user.SetRefreshToken(refreshToken, DateTime.UtcNow.AddDays(7)); // Refresh token sống 7 ngày
             await _context.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Người dùng {Username} (Id: {UserId}) đã đăng nhập thành công", user.Username, user.Id);
@@ -254,7 +253,7 @@ namespace TrainingAPI.Services.Common
 
                 var user = await _context.AppUsers.FindAsync(new object[] { userId }, cancellationToken);
 
-                if (user == null || user.RefreshToken != request.RefreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+                if (user == null || !user.IsRefreshTokenValid(request.RefreshToken))
                 {
                     _logger.LogWarning("Refresh Token thất bại hoặc hết hạn đối với User {UserId}", userId);
                     return (false, "Invalid or expired Refresh Token. Please login again.", null, null);
@@ -263,8 +262,7 @@ namespace TrainingAPI.Services.Common
                 var newAccessToken = _jwtService.GenerateAccessToken(user);
                 var newRefreshToken = _jwtService.GenerateRefreshToken();
 
-                user.RefreshToken = newRefreshToken;
-                user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+                user.SetRefreshToken(newRefreshToken, DateTime.UtcNow.AddDays(7));
                 await _context.SaveChangesAsync(cancellationToken);
 
                 _logger.LogInformation("User {UserId} đã refresh token thành công", userId);
@@ -282,8 +280,7 @@ namespace TrainingAPI.Services.Common
             var user = await _context.AppUsers.FindAsync(new object[] { userId }, cancellationToken);
             if (user == null) return (false, "User not found");
 
-            user.RefreshToken = null; // Xóa Refresh Token để ngăn đăng nhập lại bằng token cũ
-            user.RefreshTokenExpiryTime = null;
+            user.ClearRefreshToken();
             await _context.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("User {UserId} đã logout và xóa Refresh Token", userId);

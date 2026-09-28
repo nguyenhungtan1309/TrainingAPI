@@ -3,15 +3,24 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.OData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using TrainingAPI.Hubs;
 using TrainingAPI.Middlewares;
+using TrainingAPI.Services.Background;
 using TrainingAPI.Services.Common;
 using TrainingAPI.Services.Messaging;
 
+if (WindowsServiceHelpers.IsWindowsService())
+{
+    Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+}
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseWindowsService(options => options.ServiceName = "TrainingAPI");
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -103,6 +112,9 @@ builder.Services.AddScoped<ISqlDataAccess, SqlDataAccess>();
 builder.Services.AddScoped<IAttachmentUploader, CloudinaryAttachmentUploader>();
 builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddScoped<IChatThreadService, ChatThreadService>();
+builder.Services.AddSingleton<IConversationCacheService, ConversationCacheService>();
+
+builder.Services.AddHostedService<MuteExpirationCleanupService>();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddLog4Net("log4net.config");

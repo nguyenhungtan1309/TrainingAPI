@@ -13,17 +13,20 @@ namespace TrainingAPI.Services.Messaging
         private readonly ISqlDataAccess _db;
         private readonly CompanyContext _context;
         private readonly IChatMessageService _messageService;
+        private readonly IConversationCacheService _conversationCache;
         private readonly ILogger<ChatThreadService> _logger;
 
         public ChatThreadService(
             ISqlDataAccess db,
             CompanyContext context,
             IChatMessageService messageService,
+            IConversationCacheService conversationCache,
             ILogger<ChatThreadService> logger)
         {
             _db = db;
             _context = context;
             _messageService = messageService;
+            _conversationCache = conversationCache;
             _logger = logger;
         }
 
@@ -111,6 +114,17 @@ namespace TrainingAPI.Services.Messaging
             DateTime? beforeTimeUTC = null,
             CancellationToken cancellationToken = default)
         {
+            bool canUseCache = beforeTimeUTC is null;
+
+            if (canUseCache)
+            {
+                var cached = await _conversationCache.GetFirstPageAsync(viewerId, top, cancellationToken);
+                if (cached is not null)
+                {
+                    return (true, null, cached);
+                }
+            }
+
             try
             {
                 await using var result = await _db.ExecuteReaderAsync(
@@ -143,6 +157,11 @@ namespace TrainingAPI.Services.Messaging
                         IsMuted = Convert.ToBoolean(result.Reader["IsMuted"]),
                         UnreadCount = Convert.ToInt32(result.Reader["UnreadCount"])
                     });
+                }
+
+                if (canUseCache)
+                {
+                    await _conversationCache.SetFirstPageAsync(viewerId, top, list, cancellationToken);
                 }
 
                 return (true, null, list);

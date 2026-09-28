@@ -25,7 +25,7 @@ namespace TrainingAPI.Controllers
         {
             var creatorId = User.GetUserId();
             var (success, error, threadId) = await _threadService.CreateThreadAsync(creatorId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true, threadId });
         }
 
@@ -34,7 +34,7 @@ namespace TrainingAPI.Controllers
         {
             var viewerId = User.GetUserId();
             var (success, error, list) = await _threadService.GetConversationsAsync(viewerId, top, beforeTimeUTC, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(list);
         }
 
@@ -43,7 +43,7 @@ namespace TrainingAPI.Controllers
         {
             var viewerId = User.GetUserId();
             var (success, error, list) = await _threadService.GetThreadParticipantsAsync(viewerId, threadId, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(list);
         }
 
@@ -52,29 +52,27 @@ namespace TrainingAPI.Controllers
         {
             var viewerId = User.GetUserId();
             var (success, error, data) = await _threadService.GetThreadDetailsAsync(viewerId, threadId, limit, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(data);
         }
 
-        // Bổ sung alias "threads/manage-participant" khớp với fetch ở chat.html
         [HttpPost("threads/participants/manage")]
         [HttpPost("threads/manage-participant")]
         public async Task<IActionResult> ManageParticipant([FromBody] ManageParticipantRequestDTO request, CancellationToken cancellationToken)
         {
             var actionUserId = User.GetUserId();
             var (success, error) = await _threadService.ManageParticipantAsync(actionUserId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
-        // Bổ sung alias "threads/{threadId}/roles" khớp với fetch ở chat.html
         [HttpPut("threads/{threadId}/participants/role")]
         [HttpPut("threads/{threadId}/roles")]
         public async Task<IActionResult> UpdateParticipantRole([FromRoute] long threadId, [FromBody] UpdateRoleRequestDTO request, CancellationToken cancellationToken)
         {
             var actionUserId = User.GetUserId();
             var (success, error) = await _threadService.UpdateParticipantRoleAsync(actionUserId, threadId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -83,7 +81,7 @@ namespace TrainingAPI.Controllers
         {
             var actionUserId = User.GetUserId();
             var (success, error) = await _threadService.UpdateThreadTitleAsync(actionUserId, threadId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -93,7 +91,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _threadService.ToggleHideThreadAsync(userId, threadId, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -102,7 +100,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _threadService.MuteThreadAsync(userId, threadId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -113,7 +111,7 @@ namespace TrainingAPI.Controllers
         {
             var senderId = User.GetUserId();
             var (success, error, messageId) = await _messageService.SendMessageAsync(senderId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true, messageId });
         }
 
@@ -129,7 +127,7 @@ namespace TrainingAPI.Controllers
             var viewerId = User.GetUserId();
             var effectiveThreadId = threadId > 0 ? threadId : (queryThreadId ?? 0);
             var (success, error, messages) = await _messageService.GetThreadMessagesAsync(viewerId, effectiveThreadId, cursorMessageId, limit, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(messages);
         }
 
@@ -138,7 +136,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _messageService.RevokeMessageAsync(userId, messageId, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -148,7 +146,7 @@ namespace TrainingAPI.Controllers
             var userId = User.GetUserId();
             request.MessageId = messageId;
             var (success, error) = await _messageService.EditMessageAsync(userId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -157,7 +155,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (pinSuccess, pinError) = await _messageService.TogglePinMessageAsync(userId, threadId, messageId, cancellationToken);
-            if (!pinSuccess) return BadRequest(new { success = false, message = pinError });
+            if (!pinSuccess) return this.ErrorResult(pinError);
             return Ok(new { success = true });
         }
 
@@ -166,7 +164,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _messageService.DeleteMessageForMeAsync(userId, messageId, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -175,7 +173,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _messageService.ToggleReactionAsync(userId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
     }

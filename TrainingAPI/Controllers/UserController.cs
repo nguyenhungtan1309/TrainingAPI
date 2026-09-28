@@ -23,7 +23,7 @@ namespace TrainingAPI.Controllers
         {
             var currentUserId = User.GetUserId();
             var (success, error, users) = await _userService.SearchUsersAsync(currentUserId, keyword ?? string.Empty, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(users);
         }
 
@@ -32,7 +32,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _userService.UpdateProfileAsync(userId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -41,7 +41,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _userService.ChangePasswordAsync(userId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -50,7 +50,7 @@ namespace TrainingAPI.Controllers
         {
             var currentUserId = User.GetUserId();
             var (success, error) = await _userService.ToggleBlockUserAsync(currentUserId, request.BlockedUserId, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
 
@@ -59,7 +59,7 @@ namespace TrainingAPI.Controllers
         {
             var userId = User.GetUserId();
             var (success, error) = await _userService.RegisterDeviceAsync(userId, request, cancellationToken);
-            if (!success) return BadRequest(new { success = false, message = error });
+            if (!success) return this.ErrorResult(error);
             return Ok(new { success = true });
         }
     }

@@ -10,11 +10,13 @@ namespace TrainingAPI.Services.Messaging
     public class ChatMessageService : IChatMessageService
     {
         private readonly ISqlDataAccess _db;
+        private readonly IConversationCacheService _conversationCache;
         private readonly ILogger<ChatMessageService> _logger;
 
-        public ChatMessageService(ISqlDataAccess db, ILogger<ChatMessageService> logger)
+        public ChatMessageService(ISqlDataAccess db, IConversationCacheService conversationCache, ILogger<ChatMessageService> logger)
         {
             _db = db;
+            _conversationCache = conversationCache;
             _logger = logger;
         }
 
@@ -63,12 +65,46 @@ namespace TrainingAPI.Services.Messaging
                 _logger.LogInformation("User {SenderId} đã gửi tin nhắn {MessageId} loại {MessageType} vào Thread {ThreadId}",
                     senderId, newMsgId, request.MessageType, request.ThreadId);
 
+                await InvalidateConversationCacheForThreadAsync(senderId, request.ThreadId, cancellationToken);
+
                 return (true, null, newMsgId);
             }
             catch (SqlException ex)
             {
                 _logger.LogError(ex, "Lỗi SQL khi gửi tin nhắn từ User {SenderId} vào Thread {ThreadId}", senderId, request.ThreadId);
                 return (false, ex.Message, 0);
+            }
+        }
+
+        private async Task InvalidateConversationCacheForThreadAsync(int senderId, long threadId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var participantIds = new List<int>();
+
+                await using (var result = await _db.ExecuteReaderAsync(
+                    "dbo.sp_GetThreadParticipants",
+                    parameters =>
+                    {
+                        parameters.Add(new SqlParameter("@ViewerId", SqlDbType.Int) { Value = senderId });
+                        parameters.Add(new SqlParameter("@ThreadId", SqlDbType.BigInt) { Value = threadId });
+                    },
+                    cancellationToken))
+                {
+                    while (await result.Reader.ReadAsync(cancellationToken))
+                    {
+                        participantIds.Add(Convert.ToInt32(result.Reader["UserId"]));
+                    }
+                }
+
+                foreach (var userId in participantIds)
+                {
+                    await _conversationCache.InvalidateAsync(userId, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Không thể xóa cache danh sách hội thoại cho Thread {ThreadId} sau khi User {SenderId} gửi tin (không ảnh hưởng việc gửi tin đã thành công).", threadId, senderId);
             }
         }
 
@@ -96,7 +132,6 @@ namespace TrainingAPI.Services.Messaging
                 var msgList = new List<MessageResponseDTO>();
                 var msgDict = new Dictionary<long, MessageResponseDTO>();
 
-                // Set 1: Danh sách tin nhắn chính
                 while (await reader.ReadAsync(cancellationToken))
                 {
                     var msg = new MessageResponseDTO
@@ -119,7 +154,6 @@ namespace TrainingAPI.Services.Messaging
                     msgDict[msg.MessageId] = msg;
                 }
 
-                // Set 2: Attachments
                 if (await reader.NextResultAsync(cancellationToken))
                 {
                     while (await reader.ReadAsync(cancellationToken))
@@ -138,7 +172,6 @@ namespace TrainingAPI.Services.Messaging
                     }
                 }
 
-                // Set 3: Reactions
                 if (await reader.NextResultAsync(cancellationToken))
                 {
                     while (await reader.ReadAsync(cancellationToken))
