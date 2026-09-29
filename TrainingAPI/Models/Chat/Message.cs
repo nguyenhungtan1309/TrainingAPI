@@ -35,7 +35,6 @@ namespace TrainingAPI.Models.Chat
 
         public DateTime SentAtUTC { get; set; } = DateTime.UtcNow;
 
-        // Navigation properties
         [ForeignKey(nameof(ThreadId))]
         public virtual ChatThread? Thread { get; set; }
 

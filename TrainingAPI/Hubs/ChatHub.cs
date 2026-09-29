@@ -52,7 +52,7 @@ namespace TrainingAPI.Hubs
                 .AnyAsync(tp => tp.ThreadId == threadId && tp.UserId == CurrentUserId);
             if (!isMember)
             {
-                throw new HubException("Bạn không thuộc cuộc trò chuyện này.");
+                throw new HubException("Người dùng không thuộc cuộc trò chuyện này.");
             }
 
             await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(threadId));

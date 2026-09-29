@@ -130,7 +130,7 @@ namespace TrainingAPI.Services.Messaging
                 {
                     _logger.LogInformation("Tải danh sách hội thoại User {ViewerId}: nguồn=Redis, cache={CacheMs}ms, tổng={TotalMs}ms",
                         viewerId, cacheReadMs, totalWatch.ElapsedMilliseconds);
-                    return (true, null, cached); // cache hit - không đụng SQL Server
+                    return (true, null, cached);
                 }
             }
 

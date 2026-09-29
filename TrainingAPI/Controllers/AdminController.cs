@@ -4,15 +4,7 @@ using TrainingAPI.Services.Common;
 
 namespace TrainingAPI.Controllers
 {
-    /// <summary>
-    /// [2.4][Role-based Authorization] Các API quản trị hệ thống - chỉ tài khoản có SystemRole = "Admin".
-    ///
-    /// Phân biệt với quyền trong nhóm chat: ThreadParticipant.Role (Admin/Deputy/Member) chỉ có nghĩa trong
-    /// MỘT hội thoại cụ thể và được kiểm tra trong SP theo ThreadId; còn Roles = "Admin" ở đây là vai trò
-    /// TOÀN HỆ THỐNG, nằm sẵn trong JWT nên [Authorize(Roles = ...)] kiểm tra được ngay.
-    ///
-    /// Kết quả mong đợi: chưa đăng nhập -> 401; đã đăng nhập nhưng không phải Admin -> 403.
-    /// </summary>
+
     [Authorize(Roles = "Admin")]
     [ApiController]
     [Route("api/v1/admin")]

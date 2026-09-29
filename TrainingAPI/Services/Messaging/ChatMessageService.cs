@@ -219,7 +219,7 @@ namespace TrainingAPI.Services.Messaging
                     _logger.LogInformation("User {UserId} đã thu hồi tin nhắn {MessageId}", userId, messageId);
                 }
 
-                return (affected > 0, affected > 0 ? null : "Không tìm thấy tin nhắn hoặc bạn không có quyền thu hồi.");
+                return (affected > 0, affected > 0 ? null : "Không tìm thấy tin nhắn hoặc không có quyền thu hồi.");
             }
             catch (SqlException ex)
             {
@@ -254,7 +254,7 @@ namespace TrainingAPI.Services.Messaging
                     return (true, null);
                 }
 
-                return (false, "Không tìm thấy tin nhắn, tin đã bị thu hồi hoặc bạn không có quyền chỉnh sửa.");
+                return (false, "Không tìm thấy tin nhắn, tin đã bị thu hồi hoặc không có quyền chỉnh sửa.");
             }
             catch (SqlException ex)
             {

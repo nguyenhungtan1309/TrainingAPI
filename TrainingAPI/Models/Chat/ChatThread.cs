@@ -24,7 +24,6 @@ namespace TrainingAPI.Models.Chat
 
         public DateTime CreatedAtUTC { get; set; } = DateTime.UtcNow;
 
-        // Navigation properties
         public virtual ICollection<ThreadParticipant> Participants { get; set; } = new List<ThreadParticipant>();
         public virtual ICollection<Message> Messages { get; set; } = new List<Message>();
         public virtual ICollection<PinnedMessage> PinnedMessages { get; set; } = new List<PinnedMessage>();

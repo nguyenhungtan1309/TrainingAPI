@@ -158,7 +158,7 @@ namespace TrainingAPI.Services.Common
         {
             if (currentUserId == blockedUserId)
             {
-                return (false, "Bạn không thể tự chặn chính mình.");
+                return (false, "Không thể tự chặn chính mình.");
             }
 
             try
@@ -288,7 +288,7 @@ namespace TrainingAPI.Services.Common
         {
             if (adminUserId == targetUserId && !isActive)
             {
-                return (false, "Bạn không thể tự khóa tài khoản của chính mình.");
+                return (false, "Không thể tự khóa tài khoản của chính mình.");
             }
 
             var target = await _context.AppUsers.FindAsync(new object[] { targetUserId }, cancellationToken);
